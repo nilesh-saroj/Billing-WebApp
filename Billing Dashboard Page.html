@@ -1420,7 +1420,7 @@
     /* ── CHALLAN PREVIEW ───────────────────────────────── */
     .challan-layout {
       display: grid;
-      grid-template-columns: 1fr 480px;
+      grid-template-columns: 320px 1fr;
       gap: 28px;
       align-items: flex-start;
     }
@@ -1432,80 +1432,185 @@
     }
 
     .challan-preview-wrap {
-      background: #e8e4dc;
+      background: #b8b0a4;
       border-radius: var(--radius);
-      padding: 24px;
+      padding: 28px 22px;
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: 16px;
-      min-height: 500px;
+      gap: 12px;
+      min-height: 600px;
+      box-shadow: inset 0 2px 10px rgba(0, 0, 0, .2);
     }
 
-    .challan-page {
+    .preview-label {
+      font-size: 11px;
+      color: #5a544e;
+      font-weight: 700;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      align-self: flex-start;
+    }
+
+    /* A4 paper — both copies on one sheet */
+    .challan-paper {
       background: #fff;
       width: 100%;
-      max-width: 680px;
-      box-shadow: 0 4px 24px rgba(0, 0, 0, 0.18);
-      border-radius: 2px;
-      overflow: hidden;
+      max-width: 660px;
+      box-shadow: 0 6px 28px rgba(0, 0, 0, .32), 0 1px 4px rgba(0, 0, 0, .15);
+      border-radius: 1px;
       display: none;
-      font-family: Arial, sans-serif;
-      font-size: 12px;
+      padding: 16px 16px 18px;
     }
 
-    .challan-page.show {
+    .challan-paper.show {
       display: block;
+      animation: fadeIn .3s ease;
     }
 
-    .challan-page table {
+    /* Shared challan block styles */
+    .challan-block {
+      font-family: Calibri, Arial, sans-serif;
+      font-size: 11px;
+      color: #000;
+      line-height: 1.35;
+    }
+
+    .challan-block table {
       width: 100%;
       border-collapse: collapse;
-      border: 2px solid #000;
+      border: 1.5px solid #000;
     }
 
-    .challan-page td,
-    .challan-page th {
+    .challan-block td {
       border: 1px solid #000;
-      padding: 5px 7px;
+      padding: 4px 6px;
       vertical-align: top;
     }
 
-    .challan-page .c-center {
+    .ch-title {
+      font-size: 15px;
+      font-weight: bold;
       text-align: center;
     }
 
-    .challan-page .c-bold {
-      font-weight: bold;
-    }
-
-    .challan-page .c-title {
-      font-size: 18px;
-      font-weight: bold;
-      letter-spacing: 0.04em;
-    }
-
-    .challan-page .c-company {
-      font-size: 14px;
-      font-weight: bold;
-    }
-
-    .challan-page .c-small {
-      font-size: 10.5px;
-    }
-
-    .challan-page .c-sig {
-      height: 70px;
-      vertical-align: bottom;
+    .ch-copy-cell {
       text-align: center;
-      font-weight: bold;
-      font-size: 11.5px;
-    }
-
-    .challan-page .c-copy {
-      background: #f5f5f5;
       font-style: italic;
+      font-size: 10px;
+      color: #444;
+      vertical-align: middle !important;
+      width: 66px;
+      background: #f6f6f6;
+    }
+
+    .ch-header-cell {
+      text-align: center;
+      padding: 6px 8px !important;
+    }
+
+    .ch-company {
+      font-size: 13px;
+      font-weight: bold;
+      margin-bottom: 2px;
+    }
+
+    .ch-address {
+      font-size: 10px;
+      line-height: 1.5;
+    }
+
+    .ch-label {
+      font-weight: bold;
+    }
+
+    .ch-addr-cell {
+      min-height: 50px;
+      height:120px;
+    }
+
+    .ch-field-label {
+      font-weight: bold;
+      white-space: nowrap;
+      width: 68px;
+    }
+
+    .ch-field-value {
+      text-align: center;
+      height:24px;
+    }
+
+    .ch-to-cell {
+      height: 40px; /* fixed height */
+      max-height: 40px;
+      overflow: hidden;
+      line-height: 1.2;
+      word-break: break-word;
+    }
+
+    .ch-mat-head td {
+      text-align: center;
+      font-weight: bold;
+      font-size: 10px;
+      background: #f0f0f0;
+      padding: 4px 5px;
+    }
+
+    .ch-mat-data td {
+      text-align: center;
       font-size: 11px;
+    }
+
+    .ch-decl-cell {
+      font-size: 10px;
+      line-height: 1.6;
+    }
+
+    .ch-auth-cell {
+      text-align: center;
+      font-weight: bold;
+      font-size: 10.5px;
+      vertical-align: top !important;
+    }
+
+    .ch-sig-cell {
+      height: 50px;
+      vertical-align: bottom !important;
+      text-align: center;
+      font-weight: bold;
+      font-size: 10px;
+      padding-bottom: 4px !important;
+    }
+
+    .ch-footer td {
+      text-align: center;
+      font-weight: bold;
+      font-size: 10px;
+      padding: 3px;
+    }
+
+    /* Dashed separator between Original and Duplicate */
+    .challan-sep {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 10px 0;
+      width: 100%;
+    }
+
+    .challan-sep::before,
+    .challan-sep::after {
+      content: "";
+      flex: 1;
+      border-top: 1.5px dashed #aaa;
+    }
+
+    .challan-sep span {
+      font-size: 9.5px;
+      color: #999;
+      white-space: nowrap;
+      letter-spacing: .08em;
+      font-family: Arial, sans-serif;
     }
 
     .challan-empty {
@@ -1515,19 +1620,21 @@
       justify-content: center;
       gap: 14px;
       flex: 1;
-      min-height: 400px;
-      color: #a0998c;
+      min-height: 500px;
+      color: #8a8078;
+      width: 100%;
     }
 
     .challan-empty svg {
       width: 52px;
       height: 52px;
-      color: #c8c2b8;
+      color: #a8a09a;
     }
 
     .challan-empty p {
       font-size: 14px;
       margin: 0;
+      text-align: center;
     }
 
     .print-actions {
@@ -1539,98 +1646,136 @@
 
     /* ── PRINT MEDIA ───────────────────────────────────── */
     @media print {
-
       @page {
-        size: A4 portrait;
-        margin: 6mm;
+        size: A4;
+        margin: 7mm 10mm;
       }
 
-      body * {
-        visibility: hidden;
-      }
-
-      #challanPrintArea,
-      #challanPrintArea * {
-        visibility: visible;
+      body>* {
+        display: none !important;
       }
 
       #challanPrintArea {
-        position: absolute;
-        left: 0;
-        top: 0;
-        width: 198mm;
-        padding: 0;
-        background: #fff;
-      }
-
-      /* Whole page */
-      .a4-page {
-        width: 198mm;
-        height: 285mm;
-        overflow: hidden;
-      }
-
-      /* Original + Duplicate */
-      .challan-copy {
-        height: 136mm;
-      }
-
-      .copy-gap {
-        height: 4mm;
-        border-top: 1px dashed #999;
-        margin: 2mm 0;
-      }
-
-      #challanPrintArea table {
+        display: block !important;
+        position: static !important;
         width: 100%;
-        border-collapse: collapse;
-        border: 2px solid #000;
-        font-family: Arial, sans-serif;
-        font-size: 9pt;
+      }
+
+      #challanPrintArea .challan-block {
+        font-family: Calibri, Arial, sans-serif;
+        font-size: 10.5pt;
+        color: #000;
+        line-height: 1.35;
         page-break-inside: avoid;
       }
 
-      #challanPrintArea td,
-      #challanPrintArea th {
+      #challanPrintArea .challan-block table {
+        width: 100%;
+        border-collapse: collapse;
+        border: 1.5px solid #000;
+      }
+
+      #challanPrintArea .challan-block td {
         border: 1px solid #000;
-        padding: 3px 5px;
+        padding: 4px 6px;
         vertical-align: top;
       }
 
-      #challanPrintArea .c-center {
+      #challanPrintArea .ch-title {
+        font-size: 14pt;
+        font-weight: bold;
         text-align: center;
       }
 
-      #challanPrintArea .c-bold {
-        font-weight: bold;
+      #challanPrintArea .ch-copy-cell {
+        text-align: center;
+        font-style: italic;
+        font-size: 9pt;
+        background: #f6f6f6;
+        vertical-align: middle;
       }
 
-      #challanPrintArea .c-title {
+      #challanPrintArea .ch-header-cell {
+        text-align: center;
+        padding: 5px 8px;
+      }
+
+      #challanPrintArea .ch-company {
         font-size: 13pt;
         font-weight: bold;
       }
 
-      #challanPrintArea .c-company {
-        font-size: 11pt;
+      #challanPrintArea .ch-address {
+        font-size: 9pt;
+        line-height: 1.5;
+      }
+
+      #challanPrintArea .ch-label {
         font-weight: bold;
       }
 
-      #challanPrintArea .c-small {
-        font-size: 8pt;
+      #challanPrintArea .ch-field-label {
+        font-weight: bold;
+        white-space: nowrap;
       }
 
-      #challanPrintArea .c-copy {
-        font-size: 8pt;
-        font-style: italic;
-        background: #f5f5f5;
+      #challanPrintArea .ch-field-value {
+        text-align: center;
       }
 
-      #challanPrintArea .c-sig {
-        height: 40px;
+      #challanPrintArea .ch-mat-head td {
+        text-align: center;
+        font-weight: bold;
+        background: #f0f0f0;
+      }
+
+      #challanPrintArea .ch-mat-data td {
+        text-align: center;
+      }
+
+      #challanPrintArea .ch-decl-cell {
+        font-size: 9pt;
+        line-height: 1.6;
+      }
+
+      #challanPrintArea .ch-auth-cell {
+        text-align: center;
+        font-weight: bold;
+        vertical-align: top;
+      }
+
+      #challanPrintArea .ch-sig-cell {
+        height: 48px;
         vertical-align: bottom;
         text-align: center;
         font-weight: bold;
+      }
+
+      #challanPrintArea .ch-footer td {
+        text-align: center;
+        font-weight: bold;
+      }
+
+      #challanPrintArea .challan-sep {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin: 6mm 0;
+        width: 100%;
+      }
+
+      #challanPrintArea .challan-sep::before,
+      #challanPrintArea .challan-sep::after {
+        content: "";
+        flex: 1;
+        border-top: 1.5px dashed #888;
+      }
+
+      #challanPrintArea .challan-sep span {
         font-size: 8pt;
+        color: #888;
+        white-space: nowrap;
+        font-family: Arial, sans-serif;
       }
     }
   </style>
@@ -1999,12 +2144,13 @@
         </div>
       </section>
 
+
       <!-- ─── DELIVERY CHALLAN ──────────────────────────────── -->
       <section class="view" id="view-challan">
 
         <div class="topbar">
           <div>
-            <p class="eyebrow">Manifest // 04</p>
+            <p class="eyebrow">Page // 04</p>
             <h1 class="page-title">Delivery Challan</h1>
             <p class="page-sub">Select a billed IN number to preview and print the delivery challan.</p>
           </div>
@@ -2098,9 +2244,7 @@
           <!-- Right: live preview -->
           <div class="challan-preview-wrap">
 
-            <div
-              style="font-size:12px;color:#7a7060;font-weight:600;letter-spacing:.06em;text-transform:uppercase;align-self:flex-start;">
-              Preview</div>
+            <div class="preview-label">A4 Preview — Original &amp; Duplicate</div>
 
             <div class="challan-empty" id="challanEmptyState">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"
@@ -2114,8 +2258,8 @@
               <p>Select a billed IN number to preview the challan</p>
             </div>
 
-            <!-- The actual challan rendered here -->
-            <div class="challan-page" id="challanPreview">
+            <!-- Both copies rendered here (paper simulation) -->
+            <div class="challan-paper" id="challanPreview">
               <!-- injected by renderChallanPreview() -->
             </div>
 
@@ -2125,7 +2269,6 @@
       </section>
 
     </main>
-
   </div>
 
   <script>
@@ -3005,129 +3148,168 @@
     document.getElementById("cs_weight").innerText  = d.netWeight + " MT";
   }
 
-  /** Build the challan HTML table from data */
-  function buildChallanHTML(d, copyLabel) {
-    const e = escapeHtml;
+  /** Format weight to 3 decimal places like the PDF */
+  function fmtWeight(w) {
+    const n = parseFloat(w);
+    return isNaN(n) ? (w || '—') : n.toFixed(3);
+  }
+
+  /** Convert newline / comma-separated address to <br> separated HTML */
+  function fmtAddress(addr) {
+    if (!addr) return '';
+    return escapeHtml(addr).replace(/\n/g, '<br>');
+  }
+
+  /**
+   * Build one challan block (Original OR Duplicate).
+   * Matches the PDF layout exactly:
+   *  - 4 logical columns: [consignee wide | field-label | field-value-wide]
+   *  - Title row: "Delivery Challan" bold large | copy label italic
+   *  - Company header full-width
+   *  - Consignee: label+name+address on left (rowspan), date/challan/truck/from/to on right
+   *  - Material header + data row
+   *  - Declaration left | "For, Rawalwasia..." right
+   *  - Signature row
+   *  - Jurisdiction footer
+   */
+  function buildChallanBlock(d, copyLabel) {
+    const e   = escapeHtml;
+    const fw  = fmtWeight;
+    const fa  = fmtAddress;
     return `
+    <div class="challan-block">
       <table>
+
+        <!-- ① Title -->
         <tr>
-          <td colspan="5" class="c-center c-bold c-title">Delivery Challan</td>
-          <td class="c-center c-copy">${e(copyLabel)}</td>
+          <td colspan="3" class="ch-title">Delivery Challan</td>
+          <td class="ch-copy-cell">${e(copyLabel)}</td>
         </tr>
+
+        <!-- ② Company header -->
         <tr>
-          <td colspan="6" class="c-center">
-            <div class="c-company">Rawalwasia Textile Industries Pvt. Ltd.</div>
-            <br>
-            Office No. 104, 1st Floor, Raghuvir Textile Mall<br>
-            Aai Mata Road, Dumbhal, Parvat Patia, Surat – 395010<br>
-            Mob: 7046009520, 7046009515, 7046009519, 7573039884, 7573039654<br>
-            GSTN: 24AABCR1216P1ZF
+          <td colspan="4" class="ch-header-cell">
+            <div class="ch-company">Rawalwasia Textile Industries Pvt. Ltd.</div>
+            <div class="ch-address">
+              Office No. 104, 1st Floor, Raghuvir Textile Mall<br>
+              Aai Mata Road, Dumbhal, Parvat Patia, Surat - 395010.<br>
+              Mob: 7046009520, 7046009515, 7046009519, 7573039884, 7573039654<br>
+              GSTN: 24AABCR1216P1ZF
+            </div>
           </td>
         </tr>
+
+        <!-- ③ Consignee label row -->
         <tr>
-          <td colspan="3"><b>Consignee :</b><br><br></td>
-          <td class="c-bold">Date</td>
-          <td colspan="2" class="c-center">${e(d.billDate)}</td>
+          <td colspan="2" rowspan="5" class="ch-addr-cell" style="width:52%;">
+            <span class="ch-label">Consignee :</span><br><br>
+            <span style="font-weight:bold;">${e(d.partyName)}</span><br>
+            ${fa(d.partyAddress)}
+          </td>
+          <td class="ch-field-label">Date</td>
+          <td class="ch-field-value">${e(d.billDate)}</td>
         </tr>
+
+        <!-- ④ Challan No -->
         <tr>
-          <td colspan="3"><b>${e(d.partyName)}</b><br><br></td>
-          <td class="c-bold">Challan No.</td>
-          <td colspan="2" class="c-center">${e(d.billNo)}</td>
+          <td class="ch-field-label">Challan No.</td>
+          <td class="ch-field-value">${e(d.billNo)}</td>
         </tr>
+
+        <!-- ⑤ Truck No -->
         <tr>
-          <td colspan="3" rowspan="3">${e(d.partyAddress)}</td>
-          <td class="c-bold">Truck No.</td>
-          <td colspan="2" class="c-center">${e(d.truckNo)}</td>
+          <td class="ch-field-label">Truck No.</td>
+          <td class="ch-field-value">${e(d.truckNo)}</td>
         </tr>
+
+        <!-- ⑥ From -->
         <tr>
-          <td class="c-bold">From</td>
-          <td colspan="2" class="c-center">${e(d.fromLocation)}</td>
+          <td class="ch-field-label">From</td>
+          <td class="ch-field-value">${e(d.fromLocation)}</td>
         </tr>
+
+        <!-- ⑦ To -->
         <tr>
-          <td class="c-bold">To</td>
-          <td colspan="2" class="c-center">${e(d.destination)}</td>
+          <td class="ch-field-label">To</td>
+          <td class="ch-field-value ch-to-cell">${e(d.destination)}</td>
         </tr>
-        <tr class="c-center c-bold">
-          <td>Description</td>
-          <td>HSN</td>
-          <td>Gross Weight (MT)</td>
-          <td>Tare Weight (MT)</td>
-          <td colspan="2">Net Weight (MT)</td>
+
+        <!-- ⑨ Wait — PDF has 5 columns in material section, last is Net Weight -->
+        <!-- We rebuild this as a 5-col span using nested table trick or colspan -->
+
+      </table>
+
+      <!-- Material data — separate mini-table to allow 5 cols cleanly -->
+      <table style="margin-top:-1px;">
+        <tr class="ch-mat-head">
+          <td style="width:28%;border-top:none;">Description</td>
+          <td style="width:12%;border-top:none;">HSN</td>
+          <td style="border-top:none;">Gross Weight (MT)</td>
+          <td style="border-top:none;">Tare Weight (MT)</td>
+          <td style="border-top:none;">Net Weight (MT)</td>
         </tr>
-        <tr class="c-center">
+        <tr class="ch-mat-data">
           <td>Imported Steam Coal</td>
           <td>27011920</td>
-          <td>${e(d.grossWeight)} MT</td>
-          <td>${e(d.tareWeight)} MT</td>
-          <td colspan="2">${e(d.netWeight)} MT</td>
+          <td>${fw(d.grossWeight)} MT</td>
+          <td>${fw(d.tareWeight)} MT</td>
+          <td>${fw(d.netWeight)} MT</td>
         </tr>
+      </table>
+
+      <!-- Declaration + auth + signatures + footer -->
+      <table style="margin-top:-1px;">
         <tr>
-          <td colspan="3">
-            1. Goods once sold will not be taken back or exchanged.<br><br>
+          <td style="width:52%;" class="ch-decl-cell">
+            1. Goods once sold will not be taken back or exchanged.<br>
             2. Received the above goods in good order &amp; condition.
           </td>
-          <td colspan="3" class="c-center c-bold">For, Rawalwasia Textile Ind. Pvt. Ltd.</td>
+          <td class="ch-auth-cell">
+            For, Rawalwasia Textile Ind. Pvt. Ltd.
+          </td>
         </tr>
         <tr>
-          <td colspan="3" class="c-sig">Receiver's Signature with Stamp</td>
-          <td colspan="3" class="c-sig">Authorised Signatory</td>
+          <td class="ch-sig-cell">Receiver's Signature with Stamp</td>
+          <td class="ch-sig-cell">Authorised Signatory</td>
         </tr>
-        <tr>
-          <td colspan="6" class="c-center c-bold">SUBJECT TO SURAT JURISDICTION</td>
+        <tr class="ch-footer">
+          <td colspan="2">SUBJECT TO SURAT JURISDICTION</td>
         </tr>
-      </table>`;
+      </table>
+    </div>`;
   }
 
   function renderChallanPreview(d) {
-    document.getElementById("challanPreview").innerHTML = buildChallanHTML(d, "Original");
+    // Preview shows both Original + Duplicate on one paper (like the actual print)
+    const preview = document.getElementById("challanPreview");
+    preview.innerHTML =
+      buildChallanBlock(d, "Original") +
+      '<div class="challan-sep"><span>✂ &nbsp; DUPLICATE COPY &nbsp; ✂</span></div>' +
+      buildChallanBlock(d, "Duplicate");
   }
 
-  /** Inject full print content (Original + Duplicate) and trigger print */
+  /** Print: both copies on one A4 — no page break between them */
   function printChallan() {
 
     if (!currentChallanData) {
-      showToast(
-        "No challan loaded. Select an IN number first.",
-        "danger"
-      );
+      showToast("No challan loaded. Select an IN number first.", "danger");
       return;
     }
 
     const d = currentChallanData;
     const printArea = document.getElementById("challanPrintArea");
 
-    // One A4 page containing Original + Duplicate
-    printArea.innerHTML = `
-
-      <div class="a4-page">
-
-        <div class="challan-copy">
-          ${buildChallanHTML(d, "Original")}
-        </div>
-
-        <div class="copy-gap"></div>
-
-        <div class="challan-copy">
-          ${buildChallanHTML(d, "Duplicate")}
-        </div>
-
-      </div>
-
-    `;
+    printArea.innerHTML =
+      buildChallanBlock(d, "Original") +
+      '<div class="challan-sep"><span>✂ &nbsp; DUPLICATE COPY &nbsp; ✂</span></div>' +
+      buildChallanBlock(d, "Duplicate");
 
     setTimeout(function () {
-
       window.print();
-
-      setTimeout(function () {
-
-        printArea.innerHTML = "";
-
-      }, 1000);
-
+      setTimeout(function () { printArea.innerHTML = ""; }, 1200);
     }, 120);
 
-}
+  }
 
   </script>
 
