@@ -1032,35 +1032,42 @@ function getChallanData(inNo) {
       dispatchRow[CONFIG.COL_DESTINATION - 1] || ""
     ).trim();
 
+    let fromLocation = String(
+      dispatchRow[CONFIG.COL_FROM - 1] || ""
+    ).trim()
+
     let partyAddress = "";
+    let portState = "";
+    let portPincode = "";
 
     try {
 
       const billerResponse = Sheets.Spreadsheets.Values.get(
         CONFIG.TRIAL_BILL_SS_ID,
-        `${CONFIG.BILLER_SHEET}!E:J`
+        `${CONFIG.BILLER_SHEET}!B:F`
       );
 
       const billerData = billerResponse.values || [];
-
+      // Party Address lookup From biller Sheet
       for (const row of billerData) {
-
         if (
-          String(row[0] || "").trim() === destination
+          String(row[3] || "").trim() === destination
         ) {
-
-          partyAddress = String(row[1] || "").trim();
-
-          if (row[1]) {
-            destination = String(row[1]).trim();
-          }
-
+          partyAddress = String(row[4] || "").trim();
           break;
-
         }
-
       }
 
+      // Pin Cose and State lookup From biller Sheet
+      for (const row of billerData) {
+        if (
+          String(row[0] || "").trim() === fromLocation
+        ) {
+          portState = String(row[2] || "").trim();
+          portPincode = String(row[1] || "").trim();
+          break;
+        }
+      }
     }
     catch (e) {
 
@@ -1096,9 +1103,7 @@ function getChallanData(inNo) {
         dispatchRow[CONFIG.COL_TRUCK - 1] || ""
       ).trim(),
 
-      fromLocation: String(
-        dispatchRow[CONFIG.COL_FROM - 1] || ""
-      ).trim(),
+      fromLocation: fromLocation,
 
       destination: destination,
 
@@ -1116,7 +1121,51 @@ function getChallanData(inNo) {
 
       vesselName: String(
         dispatchRow[CONFIG.COL_VESSELNAME - 1] || ""
-      ).trim()
+      ).trim(),
+
+      ticketNo: String(inNo).replace(/\D/g, ""), // numeric part only
+
+      inDate: dispatchRow[CONFIG.COL_INTIME - 1]
+        ? Utilities.formatDate(
+          new Date(dispatchRow[CONFIG.COL_INTIME - 1]),
+          Session.getScriptTimeZone(),
+          "dd-MM-yyyy"
+        )
+        : "",
+
+      inTime: dispatchRow[CONFIG.COL_INTIME - 1]
+        ? Utilities.formatDate(
+          new Date(dispatchRow[CONFIG.COL_INTIME - 1]),
+          Session.getScriptTimeZone(),
+          "HH:mm:ss"
+        )
+        : "",
+
+      outDate: dispatchRow[CONFIG.COL_OUTTIME - 1]
+        ? Utilities.formatDate(
+          new Date(dispatchRow[CONFIG.COL_OUTTIME - 1]),
+          Session.getScriptTimeZone(),
+          "dd-MM-yyyy"
+        )
+        : "",
+
+      outTime: dispatchRow[CONFIG.COL_OUTTIME - 1]
+        ? Utilities.formatDate(
+          new Date(dispatchRow[CONFIG.COL_OUTTIME - 1]),
+          Session.getScriptTimeZone(),
+          "HH:mm:ss"
+        )
+        : "",
+
+      grossWeightKg: Number(dispatchRow[CONFIG.COL_GROSSWEIGHT - 1]) * 1000,
+
+      tareWeightKg: Number(dispatchRow[CONFIG.COL_TAREWEIGHT - 1]) * 1000,
+
+      netWeightKg: Number(dispatchRow[CONFIG.COL_NET_WEIGHT - 1]) * 1000,
+
+      netWeightWords: convertNumberToWords(
+        Math.round(Number(dispatchRow[CONFIG.COL_NET_WEIGHT - 1]) * 1000)
+      )
 
     };
 
@@ -1244,4 +1293,49 @@ function getBilledINList() {
  ***********************************************************/
 function generateUID() {
   return Utilities.getUuid();
+}
+
+/***********************************************************
+ *  CONVERTS NUMBER TO WORDS
+ ***********************************************************/
+
+function convertNumberToWords(num) {
+
+  const a = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six',
+             'Seven', 'Eight', 'Nine', 'Ten', 'Eleven', 'Twelve',
+             'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen',
+             'Seventeen', 'Eighteen', 'Nineteen'];
+
+  const b = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty',
+             'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+
+  function inWords(n) {
+
+    if (n < 20) return a[n];
+
+    if (n < 100)
+      return b[Math.floor(n / 10)] +
+        (n % 10 ? " " + a[n % 10] : "");
+
+    if (n < 1000)
+      return a[Math.floor(n / 100)] +
+        " Hundred " +
+        inWords(n % 100);
+
+    if (n < 100000)
+      return inWords(Math.floor(n / 1000)) +
+        " Thousand " +
+        inWords(n % 1000);
+
+    if (n < 10000000)
+      return inWords(Math.floor(n / 100000)) +
+        " Lakh " +
+        inWords(n % 100000);
+
+    return inWords(Math.floor(n / 10000000)) +
+      " Crore " +
+      inWords(n % 10000000);
+  }
+
+  return inWords(num).replace(/\s+/g, " ").trim() + " Only";
 }
