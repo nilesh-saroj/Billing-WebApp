@@ -16,7 +16,8 @@ const CONFIG = {
   SALES_ORDER_SHEET: "Sales Order",
   DO_FORM_SHEET: "DO Form",
   USER_SHEET: "Users",
-  CLAIMS_SHEET: "Claims",          // NEW — auto-created if missing
+  CLAIMS_SHEET: "Claims",
+  BILLER_SHEET: "Biller",
 
   ALLOWED_DOMAIN: "@rawalwasia.in",
   CLAIM_TTL_MS: 5 * 60 * 1000,    // claims expire after 5 minutes
@@ -85,41 +86,78 @@ function include(filename) {
  ***********************************************************/
 function getCurrentUser() {
 
-  const email = Session.getActiveUser().getEmail();
+  const email = Session.getActiveUser().getEmail().toLowerCase();
 
   try {
 
-    const billSubmitSS = SpreadsheetApp.openById(CONFIG.TRIAL_BILL_SS_ID);
-    const userSheet = billSubmitSS.getSheetByName(CONFIG.USER_SHEET);
+    const cache = CacheService.getScriptCache();
 
-    if (userSheet) {
+    let userMap = cache.get("userMap");
 
-      const data = userSheet.getDataRange().getValues();
+    if (userMap) {
 
-      for (let i = 1; i < data.length; i++) {
+      userMap = JSON.parse(userMap);
 
-        if (String(data[i][0]).trim().toLowerCase() === email.toLowerCase()) {
+    } else {
 
-          return {
-            email: email,
-            name: String(data[i][1]).trim() || email.split("@")[0]
-          };
+      const response = Sheets.Spreadsheets.Values.get(
+        CONFIG.TRIAL_BILL_SS_ID,
+        `${CONFIG.USER_SHEET}!A:B`
+      );
+
+      const values = response.values || [];
+
+      userMap = {};
+
+      // Skip header
+      for (let i = 1; i < values.length; i++) {
+
+        const rowEmail = String(values[i][0] || "")
+          .trim()
+          .toLowerCase();
+
+        const rowName = String(values[i][1] || "").trim();
+
+        if (rowEmail) {
+
+          userMap[rowEmail] = rowName;
 
         }
 
       }
 
+      // Cache for 6 hours
+      cache.put(
+        "userMap",
+        JSON.stringify(userMap),
+        21600
+      );
+
     }
 
-  }
-  catch (e) {
-    Logger.log(e);
-  }
+    return {
 
-  return {
-    email: email,
-    name: email.split("@")[0]
-  };
+      email: email,
+
+      name:
+        userMap[email] ||
+        email.split("@")[0]
+
+    };
+
+  }
+  catch (err) {
+
+    Logger.log(err);
+
+    return {
+
+      email: email,
+      name: email.split("@")[0]
+
+    };
+
+  }
 
 }
 
@@ -128,18 +166,32 @@ function getCurrentUser() {
  ***********************************************************/
 
 /** Get or create the Claims sheet */
-function getClaimsSheet_() {
+function getClaimsData_() {
 
-  const ss = SpreadsheetApp.openById(CONFIG.CLAIMS_SS_ID);
-  let sheet = ss.getSheetByName(CONFIG.CLAIMS_SHEET);
+  try {
 
-  if (!sheet) {
-    sheet = ss.insertSheet(CONFIG.CLAIMS_SHEET);
-    sheet.appendRow(["Timestamp", "IN No", "User Name", "Email"]);
-    sheet.setFrozenRows(1);
+    const res = Sheets.Spreadsheets.Values.get(
+      CONFIG.CLAIMS_SS_ID,
+      `${CONFIG.CLAIMS_SHEET}!A:D`
+    );
+
+    return res.values || [];
+
+  } catch (e) {
+
+    // Create header if sheet is empty/not found
+    Sheets.Spreadsheets.Values.update(
+      {
+        values: [["Timestamp", "IN No", "User Name", "Email"]]
+      },
+      CONFIG.CLAIMS_SS_ID,
+      `${CONFIG.CLAIMS_SHEET}!A1`,
+      { valueInputOption: "RAW" }
+    );
+
+    return [["Timestamp", "IN No", "User Name", "Email"]];
+
   }
-
-  return sheet;
 
 }
 
@@ -148,35 +200,24 @@ function getClaimsSheet_() {
  *  - the claim has expired (> CLAIM_TTL_MS old), OR
  *  - the IN number matches AND the email matches (user releasing their own claim)
  */
-function purgeClaims_(sheet, releaseInNo, releaseEmail) {
+function saveClaims_(rows) {
 
-  const lastRow = sheet.getLastRow();
-  if (lastRow <= 1) return;
+  Sheets.Spreadsheets.Values.clear(
+    {},
+    CONFIG.CLAIMS_SS_ID,
+    `${CONFIG.CLAIMS_SHEET}!A:D`
+  );
 
-  const data = sheet.getRange(2, 1, lastRow - 1, 4).getValues();
-  const now = Date.now();
-
-  // Collect rows to delete (bottom-up so indices stay valid)
-  const toDelete = [];
-
-  for (let i = data.length - 1; i >= 0; i--) {
-
-    const ts = data[i][0] ? new Date(data[i][0]).getTime() : 0;
-    const rowInNo = String(data[i][1]).trim();
-    const rowEmail = String(data[i][3]).trim();
-
-    const expired = (now - ts) > CONFIG.CLAIM_TTL_MS;
-    const ownClaim = releaseInNo && releaseEmail &&
-      rowInNo === releaseInNo &&
-      rowEmail === releaseEmail;
-
-    if (expired || ownClaim) {
-      toDelete.push(i + 2); // +2 because data is 0-indexed and sheet has header
+  Sheets.Spreadsheets.Values.update(
+    {
+      values: rows
+    },
+    CONFIG.CLAIMS_SS_ID,
+    `${CONFIG.CLAIMS_SHEET}!A1`,
+    {
+      valueInputOption: "RAW"
     }
-
-  }
-
-  toDelete.forEach(r => sheet.deleteRow(r));
+  );
 
 }
 
@@ -194,55 +235,91 @@ function claimIN(inNo) {
 
     lock.waitLock(10000);
 
-    const sheet = getClaimsSheet_();
+    const values = getClaimsData_();
 
-    // Purge expired claims first
-    purgeClaims_(sheet, null, null);
+    const header = values[0] || [
+      "Timestamp",
+      "IN No",
+      "User Name",
+      "Email"
+    ];
 
-    // Re-read after purge
-    const lastRow = sheet.getLastRow();
     const now = Date.now();
 
-    if (lastRow > 1) {
+    let claims = values.slice(1);
 
-      const data = sheet.getRange(2, 1, lastRow - 1, 4).getValues();
+    // Remove expired claims
+    claims = claims.filter(r => {
 
-      for (let i = 0; i < data.length; i++) {
+      const ts = r[0] ? new Date(r[0]).getTime() : 0;
 
-        const rowInNo = String(data[i][1]).trim();
-        const rowEmail = String(data[i][3]).trim();
-        const rowName = String(data[i][2]).trim();
-        const rowTs = data[i][0] ? new Date(data[i][0]).getTime() : 0;
+      return (now - ts) <= CONFIG.CLAIM_TTL_MS;
 
-        if (rowInNo !== inNo) continue;
+    });
 
-        // Someone else has a live claim on this IN
-        if (rowEmail !== user.email) {
-          const ageSec = Math.floor((now - rowTs) / 1000);
-          const agoStr = ageSec < 60
+    for (let i = 0; i < claims.length; i++) {
+
+      const rowInNo = String(claims[i][1]).trim();
+      const rowName = String(claims[i][2]).trim();
+      const rowEmail = String(claims[i][3]).trim();
+      const rowTs = claims[i][0]
+        ? new Date(claims[i][0]).getTime()
+        : 0;
+
+      if (rowInNo !== inNo) continue;
+
+      // Another user owns it
+      if (rowEmail !== user.email) {
+
+        const ageSec = Math.floor((now - rowTs) / 1000);
+
+        const agoStr =
+          ageSec < 60
             ? ageSec + "s ago"
             : Math.floor(ageSec / 60) + "m ago";
 
-          return { claimed: true, by: rowName, since: agoStr };
-        }
-
-        // It's the same user — refresh their claim timestamp
-        sheet.getRange(i + 2, 1).setValue(new Date());
-        return { claimed: false };
+        return {
+          claimed: true,
+          by: rowName,
+          since: agoStr
+        };
 
       }
 
+      // Same user → refresh timestamp
+      claims[i][0] = new Date().toISOString();
+
+      saveClaims_([header, ...claims]);
+
+      return { claimed: false };
+
     }
 
-    // No existing claim — write a new one
-    sheet.appendRow([new Date(), inNo, user.name, user.email]);
+    // New claim
+    claims.push([
+      new Date().toISOString(),
+      inNo,
+      user.name,
+      user.email
+    ]);
+
+    saveClaims_([header, ...claims]);
+
     return { claimed: false };
 
-  } catch (e) {
+  }
+  catch (e) {
+
     Logger.log(e);
-    return { claimed: false }; // fail open — don't block the user on a lock error
-  } finally {
-    try { lock.releaseLock(); } catch (e) { }
+    return { claimed: false };
+
+  }
+  finally {
+
+    try {
+      lock.releaseLock();
+    } catch (e) { }
+
   }
 
 }
@@ -257,11 +334,40 @@ function releaseClaim(inNo) {
 
   try {
 
-    const sheet = getClaimsSheet_();
-    purgeClaims_(sheet, inNo, user.email);
+    const values = getClaimsData_();
 
-  } catch (e) {
+    if (values.length <= 1) return;
+
+    const header = values[0];
+
+    const rows = values.slice(1);
+
+    const now = Date.now();
+
+    const filtered = rows.filter(r => {
+
+      const ts = r[0]
+        ? new Date(r[0]).getTime()
+        : 0;
+
+      const expired =
+        (now - ts) > CONFIG.CLAIM_TTL_MS;
+
+      const ownClaim =
+        String(r[1]).trim() === String(inNo).trim() &&
+        String(r[3]).trim() === user.email;
+
+      return !(expired || ownClaim);
+
+    });
+
+    saveClaims_([header, ...filtered]);
+
+  }
+  catch (e) {
+
     Logger.log(e);
+
   }
 
 }
@@ -272,30 +378,54 @@ function releaseClaim(inNo) {
  ***********************************************************/
 function checkBiltyExists(billNo) {
 
-  if (!billNo || !billNo.trim()) return { exists: false, inNo: null };
+  if (!billNo || !billNo.trim()) {
+    return {
+      exists: false,
+      inNo: null
+    };
+  }
 
   try {
 
-    const ss = SpreadsheetApp.openById(CONFIG.TRIAL_BILL_SS_ID);
-    const submitSheet = ss.getSheetByName(CONFIG.BILL_SUBMIT_SHEET);
-    const lastRow = submitSheet.getLastRow();
+    const response = Sheets.Spreadsheets.Values.get(
+      CONFIG.TRIAL_BILL_SS_ID,
+      `${CONFIG.BILL_SUBMIT_SHEET}!B109216:C`
+    );
 
-    if (lastRow <= 1) return { exists: false, inNo: null };
-
-    const data = submitSheet.getRange(2, 2, lastRow - 1, 2).getValues();
+    const data = response.values || [];
     const needle = String(billNo).trim().toLowerCase();
 
-    for (let i = 0; i < data.length; i++) {
-      if (String(data[i][1]).trim().toLowerCase() === needle) {
-        return { exists: true, inNo: String(data[i][0]).trim() };
+    for (const row of data) {
+
+      const inNo = String(row[0] || "").trim();
+      const existingBillNo = String(row[1] || "").trim().toLowerCase();
+
+      if (existingBillNo === needle) {
+
+        return {
+          exists: true,
+          inNo: inNo
+        };
+
       }
+
     }
 
-    return { exists: false, inNo: null };
+    return {
+      exists: false,
+      inNo: null
+    };
 
-  } catch (e) {
-    Logger.log(e);
-    return { exists: false, inNo: null };
+  }
+  catch (err) {
+
+    Logger.log(err);
+
+    return {
+      exists: false,
+      inNo: null
+    };
+
   }
 
 }
@@ -305,92 +435,145 @@ function checkBiltyExists(billNo) {
  ***********************************************************/
 function getPendingBills() {
 
-  const ss = SpreadsheetApp.openById(CONFIG.DISPATCH_SS_ID);
-  const billSubmitSS = SpreadsheetApp.openById(CONFIG.TRIAL_BILL_SS_ID);
-
-  const dispatchSheet = ss.getSheetByName(CONFIG.DISPATCH_SHEET);
-  const submitSheet = billSubmitSS.getSheetByName(CONFIG.BILL_SUBMIT_SHEET);
-
-  const startRow = Math.max(2, 42000);  // Start the dispatch data from 40000
-
-  const dispatchData = dispatchSheet
-    .getRange(
-      startRow,
-      1,
-      dispatchSheet.getLastRow() - startRow + 1,
-      dispatchSheet.getLastColumn()
-    )
-    .getValues();
-
-  let billedSet = new Set();
-
-  const submitStartRow = Math.max(2, 100000);  // Bill Submit Data 
-
-  if (submitSheet.getLastRow() > 1) {
-
-    billedSet = new Set(
-      submitSheet
-        .getRange(submitStartRow, 2, submitSheet.getLastRow() - submitStartRow + 1, 1)
-        .getValues()
-        .flat()
-        .map(x => String(x).trim())
-    );
-
-  }
-
-  // Also load live claims so we can flag "being worked on"
-  let claimsMap = {}; // inNo -> userName
   try {
-    const claimSheet = getClaimsSheet_();
-    const claimLast = claimSheet.getLastRow();
-    const now = Date.now();
-    if (claimLast > 1) {
-      const cData = claimSheet.getRange(2, 1, claimLast - 1, 4).getValues();
-      cData.forEach(r => {
-        const ts = r[0] ? new Date(r[0]).getTime() : 0;
-        const rowInNo = String(r[1]).trim();
-        const rowName = String(r[2]).trim();
-        if ((now - ts) <= CONFIG.CLAIM_TTL_MS && rowInNo) {
-          claimsMap[rowInNo] = rowName;
-        }
-      });
+
+    // ───────────────── Dispatch Data ─────────────────
+    const dispatchData =
+      Sheets.Spreadsheets.Values.get(
+        CONFIG.DISPATCH_SS_ID,
+        `${CONFIG.DISPATCH_SHEET}!A42000:AF`
+      ).values || [];
+
+    // ───────────────── Submitted Bills ─────────────────
+    let billedSet = new Set();
+
+    try {
+
+      const submitData =
+        Sheets.Spreadsheets.Values.get(
+          CONFIG.TRIAL_BILL_SS_ID,
+          `${CONFIG.BILL_SUBMIT_SHEET}!B100000:B`
+        ).values || [];
+
+      billedSet = new Set(
+        submitData
+          .flat()
+          .map(x => String(x).trim())
+          .filter(String)
+      );
+
+    } catch (e) {
+      Logger.log(e);
     }
-  } catch (e) { }
 
-  let pending = [];
+    // ───────────────── Live Claims ─────────────────
+    let claimsMap = {};
 
-  for (let i = 1; i < dispatchData.length; i++) {
+    try {
 
-    const row = dispatchData[i];
+      const claimSheet = getClaimsSheet_();
 
-    const inNo = String(row[CONFIG.COL_IN_NO - 1]).trim();
-    const outTime = row[CONFIG.COL_OUTTIME - 1];
-    const remarks = row[CONFIG.COL_REMARKS - 1];
+      const claimLast = claimSheet.getLastRow();
 
-    if (inNo && outTime && remarks !== "Cancel Entry" && !billedSet.has(inNo)) {
+      if (claimLast > 1) {
 
-      pending.push({
-        inNo: inNo,
-        party: row[CONFIG.COL_PARTY - 1],
-        truck: row[CONFIG.COL_TRUCK - 1],
-        outTime: outTime
-          ? Utilities.formatDate(
-            new Date(outTime),
-            Session.getScriptTimeZone(),
-            "dd-MMM-yyyy HH:mm"
-          )
-          : "",
-        claimedBy: claimsMap[inNo] || null   // NEW
-      });
+        const cData = claimSheet
+          .getRange(2, 1, claimLast - 1, 4)
+          .getValues();
+
+        const now = Date.now();
+
+        cData.forEach(r => {
+
+          const ts =
+            r[0]
+              ? new Date(r[0]).getTime()
+              : 0;
+
+          const rowInNo = String(r[1] || "").trim();
+          const rowName = String(r[2] || "").trim();
+
+          if (
+            rowInNo &&
+            (now - ts) <= CONFIG.CLAIM_TTL_MS
+          ) {
+
+            claimsMap[rowInNo] = rowName;
+
+          }
+
+        });
+
+      }
+
+    } catch (e) {
+      Logger.log(e);
+    }
+
+    // ───────────────── Pending List ─────────────────
+    let pending = [];
+
+    for (let i = 0; i < dispatchData.length; i++) {
+
+      const row = dispatchData[i];
+
+      const inNo = String(
+        row[CONFIG.COL_IN_NO - 1] || ""
+      ).trim();
+
+      const outTime =
+        row[CONFIG.COL_OUTTIME - 1];
+
+      const remarks = String(
+        row[CONFIG.COL_REMARKS - 1] || ""
+      ).trim();
+
+      if (
+        inNo &&
+        outTime &&
+        remarks !== "Cancel Entry" &&
+        !billedSet.has(inNo)
+      ) {
+
+        pending.push({
+
+          inNo: inNo,
+
+          party:
+            row[CONFIG.COL_PARTY - 1] || "",
+
+          truck:
+            row[CONFIG.COL_TRUCK - 1] || "",
+
+          outTime: outTime
+            ? Utilities.formatDate(
+              new Date(outTime),
+              Session.getScriptTimeZone(),
+              "dd-MMM-yyyy HH:mm"
+            )
+            : "",
+
+          claimedBy:
+            claimsMap[inNo] || null
+
+        });
+
+      }
 
     }
+
+    // Most recent first
+    pending.reverse();
+
+    return pending;
+
+  } catch (err) {
+
+    Logger.log(err);
+
+    return [];
 
   }
-
-  // Most recent first
-  pending.sort((a, b) => (a.inNo < b.inNo ? 1 : -1));
-
-  return pending;
 
 }
 
@@ -405,25 +588,14 @@ function getBillDetails(inNo) {
 
   try {
 
-    const ss = SpreadsheetApp.openById(CONFIG.DISPATCH_SS_ID);
-    const salesOrderSS = SpreadsheetApp.openById(CONFIG.SALES_ORDER_SS_ID);
-    const vesselSS = SpreadsheetApp.openById(CONFIG.VESSEL_SS_ID);
-
-    const dispatchSheet = ss.getSheetByName(CONFIG.DISPATCH_SHEET);
-    const salesOrderSheet = salesOrderSS.getSheetByName(CONFIG.SALES_ORDER_SHEET);
-    const doFormSheet = salesOrderSS.getSheetByName(CONFIG.DO_FORM_SHEET);
-    const sheet23 = vesselSS.getSheetByName("Sheet23");
-
     const startRow = 42000;
 
-    const dispatchData = dispatchSheet
-      .getRange(
-        startRow,
-        1,
-        dispatchSheet.getLastRow() - startRow + 1,
-        dispatchSheet.getLastColumn()
-      )
-      .getValues();
+    // ───────────────── Dispatch Sheet ─────────────────
+    const dispatchData =
+      Sheets.Spreadsheets.Values.get(
+        CONFIG.DISPATCH_SS_ID,
+        `${CONFIG.DISPATCH_SHEET}!A${startRow}:AF`
+      ).values || [];
 
     let selectedRow = null;
 
@@ -431,142 +603,169 @@ function getBillDetails(inNo) {
 
       const row = dispatchData[i];
 
-      if (String(row[CONFIG.COL_IN_NO - 1]).trim() === inNo) {
+      if (
+        String(row[CONFIG.COL_IN_NO - 1] || "").trim() ===
+        String(inNo).trim()
+      ) {
+
         selectedRow = row;
         break;
+
       }
 
     }
 
     if (!selectedRow) return null;
 
-    const soNo = String(selectedRow[CONFIG.COL_SONO - 1]).trim();
-    const pdo = String(selectedRow[CONFIG.COL_PDO - 1]).trim();
-    const doNo = String(selectedRow[CONFIG.COL_DONO - 1]).trim();
+    const soNo = String(
+      selectedRow[CONFIG.COL_SONO - 1] || ""
+    ).trim();
 
-    //---------------------------------
-    // Sheet23 lookup
-    //---------------------------------
+    const pdo = String(
+      selectedRow[CONFIG.COL_PDO - 1] || ""
+    ).trim();
 
+    const doNo = String(
+      selectedRow[CONFIG.COL_DONO - 1] || ""
+    ).trim();
+
+    // ───────────────── Sheet23 ─────────────────
     let tallyVesselName = "";
     let handlingRate = "";
 
-    const sheet23Data = sheet23.getDataRange().getValues();
+    const sheet23Data =
+      Sheets.Spreadsheets.Values.get(
+        CONFIG.VESSEL_SS_ID,
+        "Sheet23!A:O"
+      ).values || [];
 
     for (let i = 1; i < sheet23Data.length; i++) {
 
       const row = sheet23Data[i];
 
-      if (String(row[0]).trim() !== pdo) continue;
+      if (String(row[0] || "").trim() !== pdo) continue;
 
       if (soNo.startsWith("RMPL")) {
-        tallyVesselName = String(row[12]).trim();
-      } else if (soNo.startsWith("GLBL")) {
-        tallyVesselName = String(row[13]).trim();
-      } else if (soNo.startsWith("OTHR")) {
-        tallyVesselName = String(row[14]).trim();
-      } else {
-        tallyVesselName = String(row[4]).trim();
+        tallyVesselName = String(row[12] || "").trim();
+      }
+      else if (soNo.startsWith("GLBL")) {
+        tallyVesselName = String(row[13] || "").trim();
+      }
+      else if (soNo.startsWith("OTHR")) {
+        tallyVesselName = String(row[14] || "").trim();
+      }
+      else {
+        tallyVesselName = String(row[4] || "").trim();
       }
 
       break;
 
     }
 
+    // Handling rate
     for (let i = 1; i < sheet23Data.length; i++) {
 
       const row = sheet23Data[i];
 
-      if (String(row[4]).trim() === tallyVesselName) {
-        handlingRate = row[6];
+      if (
+        String(row[4] || "").trim() === tallyVesselName
+      ) {
+
+        handlingRate = row[6] || "0";
         break;
+
       }
 
     }
 
-    //---------------------------------
-    // Sales Order lookup
-    //---------------------------------
-
+    // ───────────────── Sales Order ─────────────────
     let soType = "";
     let salesOrderDestination = "";
     let salesOrderPartyName = "";
 
-    const salesOrderData = salesOrderSheet
-      .getRange(2, 2, salesOrderSheet.getLastRow() - 1, 36)
-      .getValues();
+    const salesOrderData =
+      Sheets.Spreadsheets.Values.get(
+        CONFIG.SALES_ORDER_SS_ID,
+        `${CONFIG.SALES_ORDER_SHEET}!B:AK`
+      ).values || [];
 
-    for (let i = 0; i < salesOrderData.length; i++) {
+    for (let i = 1; i < salesOrderData.length; i++) {
 
       const row = salesOrderData[i];
 
-      if (String(row[0]).trim() === soNo) {
-        salesOrderDestination = row[7];
-        soType = row[30];
-        salesOrderPartyName = row[35];
+      if (
+        String(row[0] || "").trim() === soNo
+      ) {
+
+        salesOrderDestination = row[7] || "";
+        soType = row[30] || "";
+        salesOrderPartyName = row[35] || "";
+
         break;
+
       }
 
     }
 
-    //---------------------------------
-    // DO Form lookup
-    //---------------------------------
-
+    // ───────────────── DO Form ─────────────────
     let billPort = "";
 
-    const doFormData = doFormSheet
-      .getRange(2, 2, doFormSheet.getLastRow() - 1, 21)
-      .getValues();
+    const doFormData =
+      Sheets.Spreadsheets.Values.get(
+        CONFIG.SALES_ORDER_SS_ID,
+        `${CONFIG.DO_FORM_SHEET}!B:V`
+      ).values || [];
 
-    for (let i = 0; i < doFormData.length; i++) {
+    for (let i = 1; i < doFormData.length; i++) {
 
       const row = doFormData[i];
 
-      if (String(row[0]).trim() === doNo) {
-        billPort = row[20];
+      if (
+        String(row[0] || "").trim() === doNo
+      ) {
+
+        billPort = row[20] || "";
         break;
+
       }
 
     }
 
-    //---------------------------------
-    // Return object
-    //---------------------------------
-
+    // ───────────────── Return Object ─────────────────
     return JSON.parse(JSON.stringify({
 
       inNo: inNo,
 
-      inTime: selectedRow[CONFIG.COL_INTIME - 1]
-        ? Utilities.formatDate(
-          new Date(selectedRow[CONFIG.COL_INTIME - 1]),
-          Session.getScriptTimeZone(),
-          "dd-MMM-yyyy HH:mm"
-        )
-        : "",
+      inTime: selectedRow[CONFIG.COL_INTIME - 1] || "",
+      outTime: selectedRow[CONFIG.COL_OUTTIME - 1] || "",
 
-      outTime: selectedRow[CONFIG.COL_OUTTIME - 1]
-        ? Utilities.formatDate(
-          new Date(selectedRow[CONFIG.COL_OUTTIME - 1]),
-          Session.getScriptTimeZone(),
-          "dd-MMM-yyyy HH:mm"
-        )
-        : "",
+      party: selectedRow[CONFIG.COL_PARTY - 1] || "",
+      from: selectedRow[CONFIG.COL_FROM - 1] || "",
+      destination: selectedRow[CONFIG.COL_DESTINATION - 1] || "",
+      truck: selectedRow[CONFIG.COL_TRUCK - 1] || "",
+      transporter: selectedRow[CONFIG.COL_TRANSPORTER - 1] || "",
+      trasnportPurchaseRate:
+        selectedRow[CONFIG.COL_TRANSPORTPURCHASERATE - 1] || "",
 
-      party: selectedRow[CONFIG.COL_PARTY - 1],
-      from: selectedRow[CONFIG.COL_FROM - 1],
-      destination: selectedRow[CONFIG.COL_DESTINATION - 1],
-      truck: selectedRow[CONFIG.COL_TRUCK - 1],
-      transporter: selectedRow[CONFIG.COL_TRANSPORTER - 1],
-      trasnportPurchaseRate: selectedRow[CONFIG.COL_TRANSPORTPURCHASERATE - 1],
-      trader: selectedRow[CONFIG.COL_TRADER - 1],
-      vesselName: selectedRow[CONFIG.COL_VESSELNAME - 1],
-      sealNo: selectedRow[CONFIG.COL_SEALNO - 1],
-      grossWeight: String(selectedRow[CONFIG.COL_GROSSWEIGHT - 1]),
-      tareWeight: String(selectedRow[CONFIG.COL_TAREWEIGHT - 1]),
-      netWeight: String(selectedRow[CONFIG.COL_NET_WEIGHT - 1]),
-      term: String(selectedRow[CONFIG.COL_TERM - 1]),
+      trader: selectedRow[CONFIG.COL_TRADER - 1] || "",
+      vesselName: selectedRow[CONFIG.COL_VESSELNAME - 1] || "",
+      sealNo: selectedRow[CONFIG.COL_SEALNO - 1] || "",
+
+      grossWeight: String(
+        selectedRow[CONFIG.COL_GROSSWEIGHT - 1] || ""
+      ),
+
+      tareWeight: String(
+        selectedRow[CONFIG.COL_TAREWEIGHT - 1] || ""
+      ),
+
+      netWeight: String(
+        selectedRow[CONFIG.COL_NET_WEIGHT - 1] || ""
+      ),
+
+      term: String(
+        selectedRow[CONFIG.COL_TERM - 1] || ""
+      ),
 
       soNo: soNo,
       pdo: pdo,
@@ -574,7 +773,7 @@ function getBillDetails(inNo) {
 
       soType: soType,
       tallyVesselName: tallyVesselName,
-      handlingRate: handlingRate || "0",
+      handlingRate: handlingRate,
 
       salesOrderPartyName: salesOrderPartyName,
       salesOrderDestination: salesOrderDestination,
@@ -584,8 +783,11 @@ function getBillDetails(inNo) {
 
   }
   catch (err) {
+
     Logger.log(err);
+
     return null;
+
   }
 
 }
@@ -604,34 +806,55 @@ function createBill(inNo, billNo, billBy) {
 
     lock.waitLock(30000);
 
-    const ss = SpreadsheetApp.openById(CONFIG.TRIAL_BILL_SS_ID);
-    const submitSheet = ss.getSheetByName(CONFIG.BILL_SUBMIT_SHEET);
+    // Read existing IN + Bill No using Sheets API
+    const existingData =
+      Sheets.Spreadsheets.Values.get(
+        CONFIG.TRIAL_BILL_SS_ID,
+        `${CONFIG.BILL_SUBMIT_SHEET}!B100000:C`
+      ).values || [];
 
-    const lastRow = submitSheet.getLastRow();
+    const billedSet = new Set();
+    const billNoSet = new Set();
 
-    if (lastRow > 1) {
+    existingData.forEach(row => {
 
-      const existing = submitSheet
-        .getRange(2, 2, lastRow - 1, 2)
-        .getValues();
-
-      const billedSet = new Set(
-        existing.map(r => String(r[0]).trim())
+      billedSet.add(
+        String(row[0] || "").trim()
       );
 
-      const billNoSet = new Set(
-        existing.map(r => String(r[1]).trim())
+      billNoSet.add(
+        String(row[1] || "").trim()
       );
 
-      if (billedSet.has(String(inNo).trim())) {
-        return { success: false, message: "A bill already exists for this IN number." };
-      }
+    });
 
-      if (billNoSet.has(String(billNo).trim())) {
-        return { success: false, message: "This bilty number has already been used." };
-      }
+    if (billedSet.has(String(inNo).trim())) {
+
+      return {
+        success: false,
+        message: "A bill already exists for this IN number."
+      };
 
     }
+
+    if (billNoSet.has(String(billNo).trim())) {
+
+      return {
+        success: false,
+        message: "This bilty number has already been used."
+      };
+
+    }
+
+    // Write using SpreadsheetApp
+    const ss = SpreadsheetApp.openById(
+      CONFIG.TRIAL_BILL_SS_ID
+    );
+
+    const submitSheet =
+      ss.getSheetByName(
+        CONFIG.BILL_SUBMIT_SHEET
+      );
 
     submitSheet.appendRow([
       new Date(),
@@ -642,14 +865,32 @@ function createBill(inNo, billNo, billBy) {
       generateUID()
     ]);
 
-    return { success: true, message: "Bill created successfully." };
+    // Release claim after successful bill creation
+    try {
+      releaseClaim(inNo);
+    } catch (e) { }
+
+    return {
+      success: true,
+      message: "Bill created successfully."
+    };
 
   }
   catch (e) {
-    return { success: false, message: e.toString() };
+
+    return {
+      success: false,
+      message: e.toString()
+    };
+
   }
   finally {
-    try { lock.releaseLock(); } catch (e) { }
+
+    try {
+      lock.releaseLock();
+    }
+    catch (e) { }
+
   }
 
 }
@@ -659,43 +900,345 @@ function createBill(inNo, billNo, billBy) {
  ***********************************************************/
 function getRecentBills() {
 
-  const ss = SpreadsheetApp.openById(CONFIG.TRIAL_BILL_SS_ID);
-  const submitSheet = ss.getSheetByName(CONFIG.BILL_SUBMIT_SHEET);
+  try {
 
-  const lastRow = submitSheet.getLastRow();
+    const meta = Sheets.Spreadsheets.get(
+      CONFIG.TRIAL_BILL_SS_ID,
+      { fields: "sheets(properties(title,gridProperties(rowCount)))" }
+    );
 
-  if (lastRow <= 1) return [];
+    const sheetInfo = meta.sheets.find(
+      s => s.properties.title === CONFIG.BILL_SUBMIT_SHEET
+    );
 
-  const numRows = lastRow - 1;
-  const startRow = Math.max(2, lastRow - 99); // last 100 rows
-  const fetchCount = lastRow - startRow + 1;
+    const lastRow = sheetInfo.properties.gridProperties.rowCount;
 
-  const data = submitSheet
-    .getRange(startRow, 1, fetchCount, 6)
-    .getValues();
+    const startRow = Math.max(2, lastRow - 99);
 
-  let bills = data.map(row => ({
-    date: row[0]
-      ? Utilities.formatDate(
-        new Date(row[0]),
-        Session.getScriptTimeZone(),
-        "dd-MMM-yyyy HH:mm"
-      )
-      : "",
-    inNo: String(row[1]).trim(),
-    billNo: String(row[2]).trim(),
-    billBy: row[3],
-    email: row[4],
-    uid: row[5]
-  }));
+    const response = Sheets.Spreadsheets.Values.get(
+      CONFIG.TRIAL_BILL_SS_ID,
+      `${CONFIG.BILL_SUBMIT_SHEET}!A${startRow}:F${lastRow}`
+    );
 
-  // Most recent first
-  bills.reverse();
+    const data = (response.values || []).reverse();
 
-  return bills;
+    return data.map(row => ({
+      date: row[0]
+        ? Utilities.formatDate(
+          new Date(row[0]),
+          Session.getScriptTimeZone(),
+          "dd-MMM-yyyy HH:mm"
+        )
+        : "",
+      inNo: String(row[1] || "").trim(),
+      billNo: String(row[2] || "").trim(),
+      billBy: String(row[3] || "").trim(),
+      email: String(row[4] || "").trim(),
+      uid: String(row[5] || "").trim()
+    }));
+
+  } catch (err) {
+
+    Logger.log(err);
+    return [];
+
+  }
 
 }
 
+/***********************************************************
+ *  CHALLAN DATA
+ *  Returns all fields needed to render a Delivery Challan.
+ *  Looks up the submitted bill for billNo, then enriches
+ *  with dispatch data + sales order party address.
+ ***********************************************************/
+function getChallanData(inNo) {
+
+  try {
+
+    //────────────────────────────
+    // 1. Dispatch Data
+    //────────────────────────────
+    const dispatchResponse = Sheets.Spreadsheets.Values.get(
+      CONFIG.DISPATCH_SS_ID,
+      `${CONFIG.DISPATCH_SHEET}!A40000:AF`
+    );
+
+    const dispatchData = dispatchResponse.values || [];
+
+    let dispatchRow = null;
+
+    for (const row of dispatchData) {
+
+      if (
+        String(row[CONFIG.COL_IN_NO - 1] || "").trim() ===
+        String(inNo).trim()
+      ) {
+        dispatchRow = row;
+        break;
+      }
+
+    }
+
+    if (!dispatchRow) {
+
+      return {
+        error: "Dispatch record not found for IN : " + inNo
+      };
+
+    }
+
+
+    //────────────────────────────
+    // 2. Bill Submit Data
+    //────────────────────────────
+    const submitResponse = Sheets.Spreadsheets.Values.get(
+      CONFIG.TRIAL_BILL_SS_ID,
+      `${CONFIG.BILL_SUBMIT_SHEET}!A109216:D`
+    );
+
+    const submitData = submitResponse.values || [];
+
+    let billNo = "";
+    let billDate = "";
+
+    for (const row of submitData) {
+
+      if (
+        String(row[1] || "").trim() === String(inNo).trim()
+      ) {
+
+        billNo = String(row[2] || "").trim();
+
+        billDate = row[0]
+          ? Utilities.formatDate(
+            new Date(row[0]),
+            Session.getScriptTimeZone(),
+            "dd-MMM-yyyy"
+          )
+          : "";
+
+        break;
+
+      }
+
+    }
+
+
+    //────────────────────────────
+    // 3. Destination Address
+    //────────────────────────────
+    let destination = String(
+      dispatchRow[CONFIG.COL_DESTINATION - 1] || ""
+    ).trim();
+
+    let partyAddress = "";
+
+    try {
+
+      const billerResponse = Sheets.Spreadsheets.Values.get(
+        CONFIG.TRIAL_BILL_SS_ID,
+        `${CONFIG.BILLER_SHEET}!E:J`
+      );
+
+      const billerData = billerResponse.values || [];
+
+      for (const row of billerData) {
+
+        if (
+          String(row[0] || "").trim() === destination
+        ) {
+
+          partyAddress = String(row[1] || "").trim();
+
+          if (row[1]) {
+            destination = String(row[1]).trim();
+          }
+
+          break;
+
+        }
+
+      }
+
+    }
+    catch (e) {
+
+      Logger.log("Address lookup failed : " + e);
+
+    }
+
+
+    //────────────────────────────
+    // Return Object
+    //────────────────────────────
+    return {
+
+      inNo: inNo,
+
+      billNo: billNo || "—",
+
+      billDate:
+        billDate ||
+        Utilities.formatDate(
+          new Date(),
+          Session.getScriptTimeZone(),
+          "dd-MMM-yyyy"
+        ),
+
+      partyName: String(
+        dispatchRow[CONFIG.COL_PARTY - 1] || ""
+      ).trim(),
+
+      partyAddress: partyAddress,
+
+      truckNo: String(
+        dispatchRow[CONFIG.COL_TRUCK - 1] || ""
+      ).trim(),
+
+      fromLocation: String(
+        dispatchRow[CONFIG.COL_FROM - 1] || ""
+      ).trim(),
+
+      destination: destination,
+
+      grossWeight: String(
+        dispatchRow[CONFIG.COL_GROSSWEIGHT - 1] || ""
+      ).trim(),
+
+      tareWeight: String(
+        dispatchRow[CONFIG.COL_TAREWEIGHT - 1] || ""
+      ).trim(),
+
+      netWeight: String(
+        dispatchRow[CONFIG.COL_NET_WEIGHT - 1] || ""
+      ).trim(),
+
+      vesselName: String(
+        dispatchRow[CONFIG.COL_VESSELNAME - 1] || ""
+      ).trim()
+
+    };
+
+  }
+  catch (err) {
+
+    Logger.log(err);
+
+    return {
+      error: err.toString()
+    };
+
+  }
+
+}
+
+/***********************************************************
+ *  ALL BILLED IN NUMBERS (for challan dropdown)
+ *  Returns list of {inNo, billNo, billDate, party} for
+ *  every IN that has a submitted bill.
+ ***********************************************************/
+function getBilledINList() {
+
+  try {
+
+    // -------------------------------
+    // Bill Submit (last 100 records)
+    // -------------------------------
+    const billMeta = Sheets.Spreadsheets.get(
+      CONFIG.TRIAL_BILL_SS_ID,
+      { fields: "sheets(properties(title,gridProperties(rowCount)))" }
+    );
+
+    const billSheetInfo = billMeta.sheets.find(
+      s => s.properties.title === CONFIG.BILL_SUBMIT_SHEET
+    );
+
+    const lastRow = billSheetInfo.properties.gridProperties.rowCount;
+
+    const startRow = Math.max(109216, lastRow - 99);
+
+    if (lastRow < startRow) return [];
+
+    const submitResponse = Sheets.Spreadsheets.Values.get(
+      CONFIG.TRIAL_BILL_SS_ID,
+      `${CONFIG.BILL_SUBMIT_SHEET}!A${startRow}:D${lastRow}`
+    );
+
+    const submitData = submitResponse.values || [];
+
+
+
+    // -------------------------------
+    // Dispatch data (42000 onwards)
+    // -------------------------------
+    const dispatchResponse = Sheets.Spreadsheets.Values.get(
+      CONFIG.DISPATCH_SS_ID,
+      `${CONFIG.DISPATCH_SHEET}!A42000:AF`
+    );
+
+    const dispatchData = dispatchResponse.values || [];
+
+
+
+    // -------------------------------
+    // Build IN → Party map
+    // -------------------------------
+    const partyMap = {};
+
+    dispatchData.forEach(row => {
+
+      const inNo = String(
+        row[CONFIG.COL_IN_NO - 1] || ""
+      ).trim();
+
+      const party = String(
+        row[CONFIG.COL_PARTY - 1] || ""
+      ).trim();
+
+      if (inNo) {
+        partyMap[inNo] = party;
+      }
+
+    });
+
+
+
+    // -------------------------------
+    // Build result
+    // -------------------------------
+    return submitData
+      .filter(r => String(r[1] || "").trim())
+      .map(r => ({
+
+        billDate: r[0]
+          ? Utilities.formatDate(
+            new Date(r[0]),
+            Session.getScriptTimeZone(),
+            "dd-MMM-yyyy"
+          )
+          : "",
+
+        inNo: String(r[1] || "").trim(),
+
+        billNo: String(r[2] || "").trim(),
+
+        party: partyMap[
+          String(r[1] || "").trim()
+        ] || ""
+
+      }))
+      .reverse();
+
+  }
+  catch (err) {
+
+    Logger.log(err);
+    return [];
+
+  }
+
+}
 /***********************************************************
  *  UTILITY
  ***********************************************************/
