@@ -1416,6 +1416,223 @@
         font-size: 22px;
       }
     }
+
+    /* ── CHALLAN PREVIEW ───────────────────────────────── */
+    .challan-layout {
+      display: grid;
+      grid-template-columns: 1fr 480px;
+      gap: 28px;
+      align-items: flex-start;
+    }
+
+    @media(max-width: 1100px) {
+      .challan-layout {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .challan-preview-wrap {
+      background: #e8e4dc;
+      border-radius: var(--radius);
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 16px;
+      min-height: 500px;
+    }
+
+    .challan-page {
+      background: #fff;
+      width: 100%;
+      max-width: 680px;
+      box-shadow: 0 4px 24px rgba(0, 0, 0, 0.18);
+      border-radius: 2px;
+      overflow: hidden;
+      display: none;
+      font-family: Arial, sans-serif;
+      font-size: 12px;
+    }
+
+    .challan-page.show {
+      display: block;
+    }
+
+    .challan-page table {
+      width: 100%;
+      border-collapse: collapse;
+      border: 2px solid #000;
+    }
+
+    .challan-page td,
+    .challan-page th {
+      border: 1px solid #000;
+      padding: 5px 7px;
+      vertical-align: top;
+    }
+
+    .challan-page .c-center {
+      text-align: center;
+    }
+
+    .challan-page .c-bold {
+      font-weight: bold;
+    }
+
+    .challan-page .c-title {
+      font-size: 18px;
+      font-weight: bold;
+      letter-spacing: 0.04em;
+    }
+
+    .challan-page .c-company {
+      font-size: 14px;
+      font-weight: bold;
+    }
+
+    .challan-page .c-small {
+      font-size: 10.5px;
+    }
+
+    .challan-page .c-sig {
+      height: 70px;
+      vertical-align: bottom;
+      text-align: center;
+      font-weight: bold;
+      font-size: 11.5px;
+    }
+
+    .challan-page .c-copy {
+      background: #f5f5f5;
+      font-style: italic;
+      font-size: 11px;
+    }
+
+    .challan-empty {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 14px;
+      flex: 1;
+      min-height: 400px;
+      color: #a0998c;
+    }
+
+    .challan-empty svg {
+      width: 52px;
+      height: 52px;
+      color: #c8c2b8;
+    }
+
+    .challan-empty p {
+      font-size: 14px;
+      margin: 0;
+    }
+
+    .print-actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    /* ── PRINT MEDIA ───────────────────────────────────── */
+    @media print {
+
+      @page {
+        size: A4 portrait;
+        margin: 6mm;
+      }
+
+      body * {
+        visibility: hidden;
+      }
+
+      #challanPrintArea,
+      #challanPrintArea * {
+        visibility: visible;
+      }
+
+      #challanPrintArea {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 198mm;
+        padding: 0;
+        background: #fff;
+      }
+
+      /* Whole page */
+      .a4-page {
+        width: 198mm;
+        height: 285mm;
+        overflow: hidden;
+      }
+
+      /* Original + Duplicate */
+      .challan-copy {
+        height: 136mm;
+      }
+
+      .copy-gap {
+        height: 4mm;
+        border-top: 1px dashed #999;
+        margin: 2mm 0;
+      }
+
+      #challanPrintArea table {
+        width: 100%;
+        border-collapse: collapse;
+        border: 2px solid #000;
+        font-family: Arial, sans-serif;
+        font-size: 9pt;
+        page-break-inside: avoid;
+      }
+
+      #challanPrintArea td,
+      #challanPrintArea th {
+        border: 1px solid #000;
+        padding: 3px 5px;
+        vertical-align: top;
+      }
+
+      #challanPrintArea .c-center {
+        text-align: center;
+      }
+
+      #challanPrintArea .c-bold {
+        font-weight: bold;
+      }
+
+      #challanPrintArea .c-title {
+        font-size: 13pt;
+        font-weight: bold;
+      }
+
+      #challanPrintArea .c-company {
+        font-size: 11pt;
+        font-weight: bold;
+      }
+
+      #challanPrintArea .c-small {
+        font-size: 8pt;
+      }
+
+      #challanPrintArea .c-copy {
+        font-size: 8pt;
+        font-style: italic;
+        background: #f5f5f5;
+      }
+
+      #challanPrintArea .c-sig {
+        height: 40px;
+        vertical-align: bottom;
+        text-align: center;
+        font-weight: bold;
+        font-size: 8pt;
+      }
+    }
   </style>
 
 </head>
@@ -1431,6 +1648,11 @@
   </script>
 
   <div id="toastContainer"></div>
+
+  <!-- ══ CHALLAN PRINT AREA (only visible when printing) ═══════ -->
+  <div id="challanPrintArea" style="display:none;">
+    <!-- populated by JS before window.print() -->
+  </div>
 
   <!-- ══ MISMATCH CONFIRM DIALOG ════════════════════════════════ -->
   <div class="dialog-overlay" id="mismatchDialog">
@@ -1498,6 +1720,19 @@
           </svg>
           Submitted Bills
         </div>
+      </nav>
+
+      <div class="nav-item" data-view="challan" onclick="switchView('challan')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
+          stroke-linejoin="round">
+          <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+          <polyline points="14 2 14 8 20 8" />
+          <line x1="16" y1="13" x2="8" y2="13" />
+          <line x1="16" y1="17" x2="8" y2="17" />
+          <polyline points="10 9 9 9 8 9" />
+        </svg>
+        Delivery Challan
+      </div>
       </nav>
 
       <div class="rail-foot">
@@ -1762,7 +1997,131 @@
             </div>
           </div>
         </div>
+      </section>
 
+      <!-- ─── DELIVERY CHALLAN ──────────────────────────────── -->
+      <section class="view" id="view-challan">
+
+        <div class="topbar">
+          <div>
+            <p class="eyebrow">Manifest // 04</p>
+            <h1 class="page-title">Delivery Challan</h1>
+            <p class="page-sub">Select a billed IN number to preview and print the delivery challan.</p>
+          </div>
+        </div>
+
+        <div class="challan-layout">
+
+          <!-- Left: controls -->
+          <div class="panel">
+            <div class="panel-head">
+              <h2>Challan details</h2>
+              <button class="btn btn-ghost" onclick="loadBilledList(true)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2v6h-6M3 22v-6h6M3.51 9a9 9 0 0114.13-3.36L21 8M3 16l3.36 3.36A9 9 0 0020.49 15"/></svg>
+              Refresh
+            </button>
+            </div>
+            <div class="panel-body">
+
+              <div class="field">
+                <label for="challanSelect">Select billed IN number</label>
+                <select id="challanSelect" onchange="loadChallan()">
+                <option value="">Loading billed IN numbers…</option>
+              </select>
+                <p class="field-hint" id="challanSelectHint">Bills are loaded from submitted records.</p>
+              </div>
+
+              <!-- Challan data summary card -->
+              <div id="challanSummary" style="display:none; animation: fadeIn 0.3s ease;">
+                <div
+                  style="background:var(--steel-light); border:1px solid var(--line); border-radius:var(--radius-sm); padding:14px 16px; margin-bottom:18px;">
+                  <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px 20px;">
+                    <div>
+                      <div
+                        style="font-size:11px;font-weight:600;color:var(--ink-muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:3px;">
+                        Challan No.</div>
+                      <div style="font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:700;"
+                        id="cs_billNo">—</div>
+                    </div>
+                    <div>
+                      <div
+                        style="font-size:11px;font-weight:600;color:var(--ink-muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:3px;">
+                        Date</div>
+                      <div style="font-family:'JetBrains Mono',monospace;font-size:14px;" id="cs_billDate">—</div>
+                    </div>
+                    <div>
+                      <div
+                        style="font-size:11px;font-weight:600;color:var(--ink-muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:3px;">
+                        Party</div>
+                      <div style="font-size:13.5px;font-weight:600;" id="cs_party">—</div>
+                    </div>
+                    <div>
+                      <div
+                        style="font-size:11px;font-weight:600;color:var(--ink-muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:3px;">
+                        Truck</div>
+                      <div style="font-family:'JetBrains Mono',monospace;font-size:13.5px;" id="cs_truck">—</div>
+                    </div>
+                    <div>
+                      <div
+                        style="font-size:11px;font-weight:600;color:var(--ink-muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:3px;">
+                        From → To</div>
+                      <div style="font-size:13px;" id="cs_route">—</div>
+                    </div>
+                    <div>
+                      <div
+                        style="font-size:11px;font-weight:600;color:var(--ink-muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:3px;">
+                        Net Weight</div>
+                      <div style="font-family:'JetBrains Mono',monospace;font-size:13.5px;" id="cs_weight">—</div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="print-actions">
+                  <button class="btn btn-amber full" onclick="printChallan()">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+                  Print / Save as PDF
+                </button>
+                </div>
+              </div>
+
+              <div id="challanLoadingState"
+                style="display:none; text-align:center; padding:30px; color:var(--ink-muted);">
+                <div class="spinner-ring"
+                  style="width:28px;height:28px;border:3px solid var(--line-strong);border-top-color:var(--steel);border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 12px;">
+                </div>
+                Loading challan data…
+              </div>
+
+            </div>
+          </div>
+
+          <!-- Right: live preview -->
+          <div class="challan-preview-wrap">
+
+            <div
+              style="font-size:12px;color:#7a7060;font-weight:600;letter-spacing:.06em;text-transform:uppercase;align-self:flex-start;">
+              Preview</div>
+
+            <div class="challan-empty" id="challanEmptyState">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"
+                stroke-linejoin="round">
+                <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+                <polyline points="14 2 14 8 20 8" />
+                <line x1="16" y1="13" x2="8" y2="13" />
+                <line x1="16" y1="17" x2="8" y2="17" />
+                <polyline points="10 9 9 9 8 9" />
+              </svg>
+              <p>Select a billed IN number to preview the challan</p>
+            </div>
+
+            <!-- The actual challan rendered here -->
+            <div class="challan-page" id="challanPreview">
+              <!-- injected by renderChallanPreview() -->
+            </div>
+
+          </div>
+
+        </div>
       </section>
 
     </main>
@@ -2066,7 +2425,7 @@
       const isClaimed = !!row.claimedBy;
       html += `
         <div class="ticket ${isClaimed ? 'claimed' : ''}"
-          onclick="${isClaimed ? 'showClaimedToast(\'' + escapeHtml(row.claimedBy) + '\')' : 'selectFromTicket(\'' + escapeHtml(row.inNo) + '\')'}">
+          onclick="${isClaimed ? 'showClaimedToast(${JSON.stringify(row.claimedBy)})' : 'selectFromTicket(${JSON.stringify(row.inNo)})'}">
           <span class="stamp ${isClaimed ? 'claimed' : 'pending'}">${isClaimed ? 'In progress' : 'Pending'}</span>
           <div class="ticket-top">
             <span class="ticket-stub">IN&nbsp;NO</span>
@@ -2091,7 +2450,12 @@
   }
 
   function showClaimedToast(name) {
-    showToast(name + " is currently working on this IN number.", "warning");
+    showToast(
+      "⚠️ This IN number is already being processed by " +
+      name +
+      ". Please coordinate before creating a bill.",
+      "warning"
+    );
   }
 
   function selectFromTicket(inNo) {
@@ -2540,6 +2904,230 @@
       setTimeout(() => toast.remove(), 250);
     }, 4000);
   }
+
+  /* ═══════════════════════════════════════════════════════════
+     CHALLAN
+  ═══════════════════════════════════════════════════════════ */
+
+  let challanBilledList = [];
+  let currentChallanData = null;
+
+  /** Called when user first opens the Challan view */
+  function loadBilledList(isManualRefresh) {
+
+    const select   = document.getElementById("challanSelect");
+    const hint     = document.getElementById("challanSelectHint");
+
+    if (!isManualRefresh) {
+      select.innerHTML = "<option value=''>Loading…</option>";
+    }
+
+    hint.innerText = "Loading submitted bills…";
+
+    google.script.run
+      .withSuccessHandler(function (list) {
+
+        challanBilledList = list;
+        let html = "<option value=''>Select a billed IN number…</option>";
+
+        list.forEach(item => {
+          html += `<option value="${escapeHtml(item.inNo)}">
+            ${escapeHtml(item.inNo)} — ${escapeHtml(item.billNo)} — ${escapeHtml(item.party)}
+          </option>`;
+        });
+
+        select.innerHTML = html;
+        hint.innerText   = list.length + " billed record" + (list.length===1?"":"s") + " found";
+
+        if (isManualRefresh) showToast("Billed list refreshed", "success");
+
+      })
+      .withFailureHandler(function (err) {
+        hint.innerText = "Failed to load billed records.";
+        showToast(err.toString(), "danger");
+      })
+      .getBilledINList();
+
+  }
+
+  /** Called when user selects an IN from the challan dropdown */
+  function loadChallan() {
+
+    const inNo = document.getElementById("challanSelect").value;
+
+    // Reset preview
+    document.getElementById("challanPreview").classList.remove("show");
+    document.getElementById("challanEmptyState").style.display = "flex";
+    document.getElementById("challanSummary").style.display    = "none";
+    document.getElementById("challanLoadingState").style.display = "none";
+    currentChallanData = null;
+
+    if (!inNo) return;
+
+    document.getElementById("challanLoadingState").style.display = "block";
+    document.getElementById("challanEmptyState").style.display   = "none";
+
+    google.script.run
+      .withSuccessHandler(function (data) {
+
+        document.getElementById("challanLoadingState").style.display = "none";
+
+        if (!data || data.error) {
+          showToast(data ? data.error : "Could not load challan data.", "danger");
+          document.getElementById("challanEmptyState").style.display = "flex";
+          return;
+        }
+
+        currentChallanData = data;
+        updateChallanSummary(data);
+        renderChallanPreview(data);
+
+        document.getElementById("challanSummary").style.display = "block";
+        document.getElementById("challanPreview").classList.add("show");
+        document.getElementById("challanEmptyState").style.display = "none";
+
+      })
+      .withFailureHandler(function (err) {
+        document.getElementById("challanLoadingState").style.display = "none";
+        document.getElementById("challanEmptyState").style.display   = "flex";
+        showToast(err.toString(), "danger");
+      })
+      .getChallanData(inNo);
+
+  }
+
+  function updateChallanSummary(d) {
+    document.getElementById("cs_billNo").innerText  = d.billNo;
+    document.getElementById("cs_billDate").innerText = d.billDate;
+    document.getElementById("cs_party").innerText   = d.partyName;
+    document.getElementById("cs_truck").innerText   = d.truckNo;
+    document.getElementById("cs_route").innerText   = (d.fromLocation||"—") + " → " + (d.destination||"—");
+    document.getElementById("cs_weight").innerText  = d.netWeight + " MT";
+  }
+
+  /** Build the challan HTML table from data */
+  function buildChallanHTML(d, copyLabel) {
+    const e = escapeHtml;
+    return `
+      <table>
+        <tr>
+          <td colspan="5" class="c-center c-bold c-title">Delivery Challan</td>
+          <td class="c-center c-copy">${e(copyLabel)}</td>
+        </tr>
+        <tr>
+          <td colspan="6" class="c-center">
+            <div class="c-company">Rawalwasia Textile Industries Pvt. Ltd.</div>
+            <br>
+            Office No. 104, 1st Floor, Raghuvir Textile Mall<br>
+            Aai Mata Road, Dumbhal, Parvat Patia, Surat – 395010<br>
+            Mob: 7046009520, 7046009515, 7046009519, 7573039884, 7573039654<br>
+            GSTN: 24AABCR1216P1ZF
+          </td>
+        </tr>
+        <tr>
+          <td colspan="3"><b>Consignee :</b><br><br></td>
+          <td class="c-bold">Date</td>
+          <td colspan="2" class="c-center">${e(d.billDate)}</td>
+        </tr>
+        <tr>
+          <td colspan="3"><b>${e(d.partyName)}</b><br><br></td>
+          <td class="c-bold">Challan No.</td>
+          <td colspan="2" class="c-center">${e(d.billNo)}</td>
+        </tr>
+        <tr>
+          <td colspan="3" rowspan="3">${e(d.partyAddress)}</td>
+          <td class="c-bold">Truck No.</td>
+          <td colspan="2" class="c-center">${e(d.truckNo)}</td>
+        </tr>
+        <tr>
+          <td class="c-bold">From</td>
+          <td colspan="2" class="c-center">${e(d.fromLocation)}</td>
+        </tr>
+        <tr>
+          <td class="c-bold">To</td>
+          <td colspan="2" class="c-center">${e(d.destination)}</td>
+        </tr>
+        <tr class="c-center c-bold">
+          <td>Description</td>
+          <td>HSN</td>
+          <td>Gross Weight (MT)</td>
+          <td>Tare Weight (MT)</td>
+          <td colspan="2">Net Weight (MT)</td>
+        </tr>
+        <tr class="c-center">
+          <td>Imported Steam Coal</td>
+          <td>27011920</td>
+          <td>${e(d.grossWeight)} MT</td>
+          <td>${e(d.tareWeight)} MT</td>
+          <td colspan="2">${e(d.netWeight)} MT</td>
+        </tr>
+        <tr>
+          <td colspan="3">
+            1. Goods once sold will not be taken back or exchanged.<br><br>
+            2. Received the above goods in good order &amp; condition.
+          </td>
+          <td colspan="3" class="c-center c-bold">For, Rawalwasia Textile Ind. Pvt. Ltd.</td>
+        </tr>
+        <tr>
+          <td colspan="3" class="c-sig">Receiver's Signature with Stamp</td>
+          <td colspan="3" class="c-sig">Authorised Signatory</td>
+        </tr>
+        <tr>
+          <td colspan="6" class="c-center c-bold">SUBJECT TO SURAT JURISDICTION</td>
+        </tr>
+      </table>`;
+  }
+
+  function renderChallanPreview(d) {
+    document.getElementById("challanPreview").innerHTML = buildChallanHTML(d, "Original");
+  }
+
+  /** Inject full print content (Original + Duplicate) and trigger print */
+  function printChallan() {
+
+    if (!currentChallanData) {
+      showToast(
+        "No challan loaded. Select an IN number first.",
+        "danger"
+      );
+      return;
+    }
+
+    const d = currentChallanData;
+    const printArea = document.getElementById("challanPrintArea");
+
+    // One A4 page containing Original + Duplicate
+    printArea.innerHTML = `
+
+      <div class="a4-page">
+
+        <div class="challan-copy">
+          ${buildChallanHTML(d, "Original")}
+        </div>
+
+        <div class="copy-gap"></div>
+
+        <div class="challan-copy">
+          ${buildChallanHTML(d, "Duplicate")}
+        </div>
+
+      </div>
+
+    `;
+
+    setTimeout(function () {
+
+      window.print();
+
+      setTimeout(function () {
+
+        printArea.innerHTML = "";
+
+      }, 1000);
+
+    }, 120);
+
+}
 
   </script>
 
