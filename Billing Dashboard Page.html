@@ -1526,7 +1526,7 @@
 
     .ch-addr-cell {
       min-height: 50px;
-      height:120px;
+      height: 120px;
     }
 
     .ch-field-label {
@@ -1537,11 +1537,12 @@
 
     .ch-field-value {
       text-align: center;
-      height:24px;
+      height: 24px;
     }
 
     .ch-to-cell {
-      height: 40px; /* fixed height */
+      height: 40px;
+      /* fixed height */
       max-height: 40px;
       overflow: hidden;
       line-height: 1.2;
@@ -1644,14 +1645,14 @@
       justify-content: center;
     }
 
-    /* ── PRINT MEDIA ───────────────────────────────────── */
+    /* ── PRINT CHALLAN MEDIA ───────────────────────────────────── */
     @media print {
       @page {
         size: A4;
         margin: 7mm 10mm;
       }
 
-      body>* {
+      body>*:not(#challanPrintArea):not(#weighmentPrintArea) {
         display: none !important;
       }
 
@@ -1778,6 +1779,130 @@
         font-family: Arial, sans-serif;
       }
     }
+
+    /* ── WEIGHMENT SLIP ────────────────────────────────── */
+    .ws-paper {
+      background: #fff;
+      width: 100%;
+      max-width: 480px;
+      box-shadow: 0 6px 28px rgba(0, 0, 0, .28), 0 1px 4px rgba(0, 0, 0, .15);
+      border-radius: 1px;
+      display: none;
+      padding: 22px 24px;
+      font-family: Georgia, 'Times New Roman', serif;
+    }
+
+    .ws-paper.show {
+      display: block;
+      animation: fadeIn .3s ease;
+    }
+
+    .ws-title {
+      text-align: center;
+      font-size: 20px;
+      font-weight: bold;
+      letter-spacing: .06em;
+      margin-bottom: 14px;
+      border-bottom: 2px solid #000;
+      padding-bottom: 8px;
+    }
+
+    .ws-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 5px 0;
+      font-size: 12.5px;
+      border-bottom: 1px dotted #ccc;
+    }
+
+    .ws-row .ws-label {
+      font-weight: bold;
+      color: #333;
+    }
+
+    .ws-row .ws-value {
+      text-align: right;
+    }
+
+    .ws-words {
+      margin-top: 10px;
+      padding: 10px;
+      background: #f6f4ee;
+      border: 1px dashed #c7c2b8;
+      font-size: 12px;
+      font-style: italic;
+    }
+
+    .ws-sig {
+      margin-top: 30px;
+      text-align: right;
+      font-weight: bold;
+      font-size: 12.5px;
+    }
+
+    @media print {
+      #weighmentPrintArea {
+        display: block !important;
+        position: static !important;
+      }
+
+      /* NEW — force weighment slip classes to render in print */
+      #weighmentPrintArea .ws-paper {
+        display: block !important;
+        width: 100%;
+        max-width: 100%;
+        box-shadow: none !important;
+        padding: 10mm;
+        font-family: Georgia, 'Times New Roman', serif;
+        color: #000;
+      }
+
+      #weighmentPrintArea .ws-title {
+        text-align: center;
+        font-size: 18pt;
+        font-weight: bold;
+        letter-spacing: .06em;
+        margin-bottom: 14px;
+        border-bottom: 2px solid #000;
+        padding-bottom: 8px;
+      }
+
+      #weighmentPrintArea .ws-row {
+        display: flex;
+        justify-content: space-between;
+        gap: 16px;
+        padding: 6px 0;
+        font-size: 11pt;
+        border-bottom: 1px dotted #999;
+      }
+
+      #weighmentPrintArea .ws-row .ws-label {
+        font-weight: bold;
+        color: #000;
+      }
+
+      #weighmentPrintArea .ws-row .ws-value {
+        text-align: right;
+      }
+
+      #weighmentPrintArea .ws-words {
+        margin-top: 10px;
+        padding: 10px;
+        background: #f6f4ee;
+        border: 1px dashed #999;
+        font-size: 10.5pt;
+        font-style: italic;
+      }
+
+      #weighmentPrintArea .ws-sig {
+        margin-top: 30px;
+        text-align: right;
+        font-weight: bold;
+        font-size: 11pt;
+      }
+    }
+
   </style>
 
 </head>
@@ -1798,6 +1923,8 @@
   <div id="challanPrintArea" style="display:none;">
     <!-- populated by JS before window.print() -->
   </div>
+
+  <div id="weighmentPrintArea" style="display:none;"></div>
 
   <!-- ══ MISMATCH CONFIRM DIALOG ════════════════════════════════ -->
   <div class="dialog-overlay" id="mismatchDialog">
@@ -1838,7 +1965,7 @@
           <div class="b2">Dispatch Billing</div>
         </div>
       </div>
-
+      <!-- ══ NAVIGATION ══════════════════════════════════════════════════ -->
       <nav class="nav">
         <div class="nav-item active" data-view="create" onclick="switchView('create')">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
@@ -1865,19 +1992,28 @@
           </svg>
           Submitted Bills
         </div>
-      </nav>
 
-      <div class="nav-item" data-view="challan" onclick="switchView('challan')">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
-          stroke-linejoin="round">
-          <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
-          <polyline points="14 2 14 8 20 8" />
-          <line x1="16" y1="13" x2="8" y2="13" />
-          <line x1="16" y1="17" x2="8" y2="17" />
-          <polyline points="10 9 9 9 8 9" />
-        </svg>
-        Delivery Challan
-      </div>
+        <div class="nav-item" data-view="challan" onclick="switchView('challan')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
+            stroke-linejoin="round">
+            <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+            <polyline points="14 2 14 8 20 8" />
+            <line x1="16" y1="13" x2="8" y2="13" />
+            <line x1="16" y1="17" x2="8" y2="17" />
+            <polyline points="10 9 9 9 8 9" />
+          </svg>
+          Delivery Challan
+        </div>
+
+        <div class="nav-item" data-view="weighment" onclick="switchView('weighment')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
+            stroke-linejoin="round">
+            <path
+              d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
+            <circle cx="12" cy="12" r="6" />
+          </svg>
+          Weighment Slip
+        </div>
       </nav>
 
       <div class="rail-foot">
@@ -1946,6 +2082,26 @@
             stroke-linejoin="round">
             <path d="M3 7h18M3 12h18M3 17h12" />
           </svg>
+        </div>
+        <div class="nav-item" data-view="challan" onclick="switchView('challan')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
+            stroke-linejoin="round">
+            <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+            <polyline points="14 2 14 8 20 8" />
+            <line x1="16" y1="13" x2="8" y2="13" />
+            <line x1="16" y1="17" x2="8" y2="17" />
+            <polyline points="10 9 9 9 8 9" />
+          </svg>
+          Delivery Challan
+        </div>
+        <div class="nav-item" data-view="weighment" onclick="switchView('weighment')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
+            stroke-linejoin="round">
+            <path
+              d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
+            <circle cx="12" cy="12" r="6" />
+          </svg>
+          Weighment Slip
         </div>
       </nav>
     </div>
@@ -2268,6 +2424,107 @@
         </div>
       </section>
 
+      <!-- ─── WEIGHMENT SLIP ─────────────────────────────────── -->
+      <section class="view" id="view-weighment">
+
+        <div class="topbar">
+          <div>
+            <p class="eyebrow">Page // 05</p>
+            <h1 class="page-title">Weighment Slip</h1>
+            <p class="page-sub">Select an IN number to generate the weighment slip.</p>
+          </div>
+        </div>
+
+        <div class="challan-layout">
+
+          <!-- Left: controls -->
+          <div class="panel">
+            <div class="panel-head">
+              <h2>Weighment details</h2>
+              <button class="btn btn-ghost" onclick="loadWeighmentDropdown(true)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2v6h-6M3 22v-6h6M3.51 9a9 9 0 0114.13-3.36L21 8M3 16l3.36 3.36A9 9 0 0020.49 15"/></svg>
+                <span id="wsRefreshLabel">Refresh</span>
+              </button>
+            </div>
+            <div class="panel-body">
+              <div class="field">
+                <label for="wsSelect">Select IN number</label>
+                <select id="wsSelect" onchange="loadWeighmentSlip()">
+                  <option value="">Loading IN numbers…</option>
+                </select>
+                <p class="field-hint" id="wsSelectHint">Click Refresh to load dispatch IN numbers.</p>
+              </div>
+
+              <!-- Challan data summary card -->
+              <div id="weightmentSummary" style="display:none; animation: fadeIn 0.3s ease;">
+                <div
+                  style="background:var(--steel-light); border:1px solid var(--line); border-radius:var(--radius-sm); padding:14px 16px; margin-bottom:18px;">
+                  <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px 20px;">
+                    <div>
+                      <div
+                        style="font-size:11px;font-weight:600;color:var(--ink-muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:3px;">
+                        In No.</div>
+                      <div style="font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:700;"
+                        id="ws_billNo">—</div>
+                    </div>
+                    <div>
+                      <div
+                        style="font-size:11px;font-weight:600;color:var(--ink-muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:3px;">
+                        Date</div>
+                      <div style="font-family:'JetBrains Mono',monospace;font-size:14px;" id="ws_billDate">—</div>
+                    </div>
+                    <div>
+                      <div
+                        style="font-size:11px;font-weight:600;color:var(--ink-muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:3px;">
+                        Party</div>
+                      <div style="font-size:13.5px;font-weight:600;" id="ws_party">—</div>
+                    </div>
+                    <div>
+                      <div
+                        style="font-size:11px;font-weight:600;color:var(--ink-muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:3px;">
+                        State</div>
+                      <div style="font-family:'JetBrains Mono',monospace;font-size:13.5px;" id="ws_truck">—</div>
+                    </div>
+                    <div>
+                      <div
+                        style="font-size:11px;font-weight:600;color:var(--ink-muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:3px;">
+                        From → Pincode</div>
+                      <div style="font-size:13px;" id="ws_route">—</div>
+                    </div>
+                    <div>
+                      <div
+                        style="font-size:11px;font-weight:600;color:var(--ink-muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:3px;">
+                        Net Weight</div>
+                      <div style="font-family:'JetBrains Mono',monospace;font-size:13.5px;" id="ws_weight">—</div>
+                    </div>
+                  </div>
+                </div>
+                <div class="print-actions">
+                  <button class="btn btn-amber full" onclick="printWeighmentSlip()" id="wsPrintBtn" disabled>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+                    Print Slip
+                  </button>
+                </div>
+              </div>
+
+              <div id="WeighmentLoadingState"
+                style="display:none; text-align:center; padding:30px; color:var(--ink-muted);">
+                <div class="spinner-ring"
+                  style="width:28px;height:28px;border:3px solid var(--line-strong);border-top-color:var(--steel);border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 12px;">
+                </div>
+                Loading WeightMent data…
+              </div>
+            </div>
+          </div>
+
+          <div class="challan-preview-wrap">
+            <div class="preview-label">Weighment Slip Preview</div>
+            <div class="ws-paper" id="wsPreview"></div>
+          </div>
+
+        </div>
+      </section>
+
     </main>
   </div>
 
@@ -2353,6 +2610,7 @@
       n.classList.toggle('active', n.dataset.view === view);
     });
     if (view === 'history' && !historyLoaded) loadRecentBills();
+    //if (view === 'weighment' && weighmentINList.length === 0) loadWeighmentDropdown();
   }
 
   /* ═══════════════════════════════════════════════════════════
@@ -3310,6 +3568,123 @@
     }, 120);
 
   }
+
+/* ═══════════════════════════════════════════════════════════
+   WEIGHMENT SLIP
+═══════════════════════════════════════════════════════════ */
+let currentWeighmentData = null;
+
+let weighmentINList = [];
+
+/** Loads ALL dispatch IN numbers for the weighment dropdown */
+function loadWeighmentDropdown(isManualRefresh) {
+
+  const select = document.getElementById("wsSelect");
+  const hint   = document.getElementById("wsSelectHint");
+  const btn    = event ? event.currentTarget : null;
+
+  if (isManualRefresh && btn) {
+    setBtnLoading(btn, true, "Refreshing…", "wsRefreshLabel");
+  }
+
+  hint.innerText = "Loading IN numbers…";
+
+  google.script.run
+    .withSuccessHandler(function (list) {
+
+      challanBilledList = list;
+      let html = "<option value=''>Select an IN number…</option>";
+
+      list.forEach(item => {
+        html += `<option value="${escapeHtml(item.inNo)}">${escapeHtml(item.inNo)} — ${escapeHtml(item.party||'')}</option>`;
+      });
+
+      select.innerHTML = html;
+      hint.innerText = list.length + " IN number" + (list.length===1?"":"s") + " available";
+
+      if (isManualRefresh) {
+        if (btn) setBtnLoading(btn, false, "Refresh", "wsRefreshLabel");
+        showToast("IN number list refreshed", "success");
+      }
+
+    })
+    .withFailureHandler(function (err) {
+      hint.innerText = "Failed to load IN numbers.";
+      if (isManualRefresh && btn) setBtnLoading(btn, false, "Refresh", "wsRefreshLabel");
+      showToast(err.toString(), "danger");
+    })
+    .getBilledINList(); // reuse — returns dispatch IN numbers with party info
+
+}
+
+function loadWeighmentSlip() {
+  const inNo = document.getElementById("wsSelect").value;
+  document.getElementById("wsPreview").classList.remove("show");
+  document.getElementById("wsPrintBtn").disabled = true;
+  document.getElementById("WeighmentLoadingState").style.display = "none";
+  document.getElementById("weightmentSummary").style.display = "none";
+  currentWeighmentData = null;
+  if (!inNo) return;
+  document.getElementById("WeighmentLoadingState").style.display = "block";
+
+  google.script.run
+    .withSuccessHandler(function (data) {
+      document.getElementById("WeighmentLoadingState").style.display = "none";
+      if (!data || data.error) {
+        showToast(data ? data.error : "Could not load weighment data.", "danger");
+        return;
+      }
+      currentWeighmentData = data;
+      updateWeightmentSlipSummary(data);
+      document.getElementById("weightmentSummary").style.display = "block";
+      renderWeighmentSlip(data, "wsPreview");
+      document.getElementById("wsPreview").classList.add("show");
+      document.getElementById("wsPrintBtn").disabled = false;
+    })
+    .withFailureHandler(function (err) { showToast(err.toString(), "danger"); })
+    .getWeighmentSlipData(inNo);
+
+    
+}
+
+function updateWeightmentSlipSummary(d) {
+      document.getElementById("ws_billNo").innerText  = d.inNo;
+      document.getElementById("ws_billDate").innerText = d.grossDate;
+      document.getElementById("ws_party").innerText   = d.state;
+      document.getElementById("ws_truck").innerText   = d.vehicleNo;
+      document.getElementById("ws_route").innerText   = (d.port||"—") + " → " + (d.pin||"—");
+      document.getElementById("ws_weight").innerText  = d.netWeightKG + " Kg";
+    }
+
+function buildWeighmentSlipHTML(d) {
+  const e = escapeHtml;
+  return `
+    <div class="ws-title">Weighment Slip</div>
+    <div class="ws-row"><span class="ws-label">Port:</span><span class="ws-value">${e(d.port)}</span></div>
+    <div class="ws-row"><span class="ws-label">State:</span><span class="ws-value">${e(d.state)}${d.pin ? ' PIN: ' + e(d.pin) : ''}</span></div>
+    <div class="ws-row"><span class="ws-label">Ticket No.:</span><span class="ws-value">${e(d.ticketNo)}</span></div>
+    <div class="ws-row"><span class="ws-label">Commodity:</span><span class="ws-value">${e(d.commodity)}</span></div>
+    <div class="ws-row"><span class="ws-label">Vehicle No.:</span><span class="ws-value">${e(d.vehicleNo)}</span></div>
+    <div class="ws-row"><span class="ws-label">Gross Weight:</span><span class="ws-value">${e(d.grossWeightKG)} &nbsp; Date: ${e(d.grossDate)} Time: ${e(d.grossTime)}</span></div>
+    <div class="ws-row"><span class="ws-label">Tare Weight:</span><span class="ws-value">${e(d.tareWeightKG)} &nbsp; Date: ${e(d.tareDate)} Time: ${e(d.tareTime)}</span></div>
+    <div class="ws-row"><span class="ws-label">Net Weight:</span><span class="ws-value">${e(d.netWeightKG)}</span></div>
+    <div class="ws-words">Net Weight: ${e(d.netWeightWords)}</div>
+    <div class="ws-sig">Signature</div>`;
+}
+
+function renderWeighmentSlip(d, targetId) {
+  document.getElementById(targetId).innerHTML = buildWeighmentSlipHTML(d);
+}
+
+function printWeighmentSlip() {
+  if (!currentWeighmentData) { showToast("Select an IN number first.", "danger"); return; }
+  const printArea = document.getElementById("weighmentPrintArea");
+  printArea.innerHTML = `<div class="ws-paper show" style="box-shadow:none;max-width:100%;">${buildWeighmentSlipHTML(currentWeighmentData)}</div>`;
+  setTimeout(function () {
+    window.print();
+    setTimeout(function () { printArea.innerHTML = ""; }, 1200);
+  }, 120);
+}
 
   </script>
 
