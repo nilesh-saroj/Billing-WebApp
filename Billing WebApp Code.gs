@@ -69,12 +69,37 @@ function doGet() {
       );
 
   }
+  if (!isAuthorizedUser()) {
+    return HtmlService.createHtmlOutput(
+      "<h2>Access Denied</h2><p>You are not authorized to use this application.</p>"
+    );
+  }
 
   return HtmlService
     .createTemplateFromFile("Billing Dashboard Page")
     .evaluate()
     .setTitle("Bill Management — Rawalwasia")
     .addMetaTag("viewport", "width=device-width, initial-scale=1");
+}
+
+/***********************************************************
+ *  AUTHORIZED USER ACCES  ONLY
+ ***********************************************************/
+function isAuthorizedUser() {
+
+  const email = Session.getActiveUser().getEmail().toLowerCase();
+
+  const values = Sheets.Spreadsheets.Values.get(
+    CONFIG.TRIAL_BILL_SS_ID,
+    `${CONFIG.BILLER_SHEET}!G2:G`
+  ).values || [];
+
+  const allowedUsers = new Set(
+    values.flat().map(e => String(e).toLowerCase().trim())
+  );
+
+  return allowedUsers.has(email);
+
 }
 
 function include(filename) {
@@ -1123,49 +1148,49 @@ function getChallanData(inNo) {
         dispatchRow[CONFIG.COL_VESSELNAME - 1] || ""
       ).trim(),
 
-      ticketNo: String(inNo).replace(/\D/g, ""), // numeric part only
+      // ticketNo: String(inNo).replace(/\D/g, ""), // numeric part only
 
-      inDate: dispatchRow[CONFIG.COL_INTIME - 1]
-        ? Utilities.formatDate(
-          new Date(dispatchRow[CONFIG.COL_INTIME - 1]),
-          Session.getScriptTimeZone(),
-          "dd-MM-yyyy"
-        )
-        : "",
+      // inDate: dispatchRow[CONFIG.COL_INTIME - 1]
+      //   ? Utilities.formatDate(
+      //     new Date(dispatchRow[CONFIG.COL_INTIME - 1]),
+      //     Session.getScriptTimeZone(),
+      //     "dd-MM-yyyy"
+      //   )
+      //   : "",
 
-      inTime: dispatchRow[CONFIG.COL_INTIME - 1]
-        ? Utilities.formatDate(
-          new Date(dispatchRow[CONFIG.COL_INTIME - 1]),
-          Session.getScriptTimeZone(),
-          "HH:mm:ss"
-        )
-        : "",
+      // inTime: dispatchRow[CONFIG.COL_INTIME - 1]
+      //   ? Utilities.formatDate(
+      //     new Date(dispatchRow[CONFIG.COL_INTIME - 1]),
+      //     Session.getScriptTimeZone(),
+      //     "HH:mm:ss"
+      //   )
+      //   : "",
 
-      outDate: dispatchRow[CONFIG.COL_OUTTIME - 1]
-        ? Utilities.formatDate(
-          new Date(dispatchRow[CONFIG.COL_OUTTIME - 1]),
-          Session.getScriptTimeZone(),
-          "dd-MM-yyyy"
-        )
-        : "",
+      // outDate: dispatchRow[CONFIG.COL_OUTTIME - 1]
+      //   ? Utilities.formatDate(
+      //     new Date(dispatchRow[CONFIG.COL_OUTTIME - 1]),
+      //     Session.getScriptTimeZone(),
+      //     "dd-MM-yyyy"
+      //   )
+      //   : "",
 
-      outTime: dispatchRow[CONFIG.COL_OUTTIME - 1]
-        ? Utilities.formatDate(
-          new Date(dispatchRow[CONFIG.COL_OUTTIME - 1]),
-          Session.getScriptTimeZone(),
-          "HH:mm:ss"
-        )
-        : "",
+      // outTime: dispatchRow[CONFIG.COL_OUTTIME - 1]
+      //   ? Utilities.formatDate(
+      //     new Date(dispatchRow[CONFIG.COL_OUTTIME - 1]),
+      //     Session.getScriptTimeZone(),
+      //     "HH:mm:ss"
+      //   )
+      //   : "",
 
-      grossWeightKg: Number(dispatchRow[CONFIG.COL_GROSSWEIGHT - 1]) * 1000,
+      // grossWeightKg: Number(dispatchRow[CONFIG.COL_GROSSWEIGHT - 1]) * 1000,
 
-      tareWeightKg: Number(dispatchRow[CONFIG.COL_TAREWEIGHT - 1]) * 1000,
+      // tareWeightKg: Number(dispatchRow[CONFIG.COL_TAREWEIGHT - 1]) * 1000,
 
-      netWeightKg: Number(dispatchRow[CONFIG.COL_NET_WEIGHT - 1]) * 1000,
+      // netWeightKg: Number(dispatchRow[CONFIG.COL_NET_WEIGHT - 1]) * 1000,
 
-      netWeightWords: convertNumberToWords(
-        Math.round(Number(dispatchRow[CONFIG.COL_NET_WEIGHT - 1]) * 1000)
-      )
+      // netWeightWords: convertNumberToWords(
+      //   Math.round(Number(dispatchRow[CONFIG.COL_NET_WEIGHT - 1]) * 1000)
+      // )
 
     };
 
@@ -1288,6 +1313,181 @@ function getBilledINList() {
   }
 
 }
+
+/***********************************************************
+ *  WEIGHMENT SLIP DATA
+ *  Returns all fields needed to render a Weighment Slip
+ *  for a given dispatch IN number.
+ ***********************************************************/
+function getWeighmentSlipData(inNo) {
+
+  try {
+
+    //────────────────────────────
+    // 1. Dispatch Data
+    //────────────────────────────
+    const dispatchResponse = Sheets.Spreadsheets.Values.get(
+      CONFIG.DISPATCH_SS_ID,
+      `${CONFIG.DISPATCH_SHEET}!A40000:AF`
+    );
+
+    const dispatchData = dispatchResponse.values || [];
+
+    let dispatchRow = null;
+
+    for (const row of dispatchData) {
+
+      if (
+        String(row[CONFIG.COL_IN_NO - 1] || "").trim() ===
+        String(inNo).trim()
+      ) {
+        dispatchRow = row;
+        break;
+      }
+
+    }
+
+    if (!dispatchRow) {
+
+      return {
+        error: "Dispatch record not found for IN : " + inNo
+      };
+
+    }
+
+    //────────────────────────────
+    // 2. Port = From location
+    //────────────────────────────
+    const port = String(
+      dispatchRow[CONFIG.COL_FROM - 1] || ""
+    ).trim();
+
+    //────────────────────────────
+    // 3. State + Pincode lookup from Biller Sheet
+    //    (same column mapping as getChallanData: B=Port, C=Pincode, D=State)
+    //────────────────────────────
+    let state = "";
+    let pin = "";
+
+    try {
+
+      const billerResponse = Sheets.Spreadsheets.Values.get(
+        CONFIG.TRIAL_BILL_SS_ID,
+        `${CONFIG.BILLER_SHEET}!B:F`
+      );
+
+      const billerData = billerResponse.values || [];
+
+      for (const row of billerData) {
+
+        if (
+          String(row[0] || "").trim() === port
+        ) {
+          pin = String(row[1] || "").trim();
+          state = String(row[2] || "").trim();
+          break;
+        }
+
+      }
+
+    }
+    catch (e) {
+      Logger.log("Biller lookup failed : " + e);
+    }
+
+    //────────────────────────────
+    // 4. Ticket No. = numeric part of IN No
+    //────────────────────────────
+    const ticketNo = String(inNo).replace(/\D/g, "");
+
+    //────────────────────────────
+    // 5. Weights — MT to KG (× 1000)
+    //────────────────────────────
+    const grossWeightKG = Number(dispatchRow[CONFIG.COL_GROSSWEIGHT - 1]) * 1000;
+    const tareWeightKG = Number(dispatchRow[CONFIG.COL_TAREWEIGHT - 1]) * 1000;
+    const netWeightKG = Number(dispatchRow[CONFIG.COL_NET_WEIGHT - 1]) * 1000;
+
+    //────────────────────────────
+    // 6. Date & Time — In = Gross weighment, Out = Tare weighment
+    //────────────────────────────
+    const grossDate = dispatchRow[CONFIG.COL_INTIME - 1]
+      ? Utilities.formatDate(
+        new Date(dispatchRow[CONFIG.COL_INTIME - 1]),
+        Session.getScriptTimeZone(),
+        "dd-MM-yyyy"
+      )
+      : "";
+
+    const grossTime = dispatchRow[CONFIG.COL_INTIME - 1]
+      ? Utilities.formatDate(
+        new Date(dispatchRow[CONFIG.COL_INTIME - 1]),
+        Session.getScriptTimeZone(),
+        "HH:mm:ss"
+      )
+      : "";
+
+    const tareDate = dispatchRow[CONFIG.COL_OUTTIME - 1]
+      ? Utilities.formatDate(
+        new Date(dispatchRow[CONFIG.COL_OUTTIME - 1]),
+        Session.getScriptTimeZone(),
+        "dd-MM-yyyy"
+      )
+      : "";
+
+    const tareTime = dispatchRow[CONFIG.COL_OUTTIME - 1]
+      ? Utilities.formatDate(
+        new Date(dispatchRow[CONFIG.COL_OUTTIME - 1]),
+        Session.getScriptTimeZone(),
+        "HH:mm:ss"
+      )
+      : "";
+
+    //────────────────────────────
+    // Return Object — field names match index.html exactly
+    //────────────────────────────
+    return {
+
+      inNo: inNo,
+
+      port: port,
+      state: state,
+      pin: pin,
+
+      ticketNo: ticketNo,
+      commodity: "Coal",   // static — change if commodity varies per dispatch
+
+      vehicleNo: String(
+        dispatchRow[CONFIG.COL_TRUCK - 1] || ""
+      ).trim(),
+
+      grossWeightKG: grossWeightKG,
+      grossDate: grossDate,
+      grossTime: grossTime,
+
+      tareWeightKG: tareWeightKG,
+      tareDate: tareDate,
+      tareTime: tareTime,
+
+      netWeightKG: netWeightKG,
+
+      netWeightWords: convertNumberToWords(
+        Math.round(netWeightKG)
+      )
+
+    };
+
+  }
+  catch (err) {
+
+    Logger.log(err);
+
+    return {
+      error: err.toString()
+    };
+
+  }
+
+}
 /***********************************************************
  *  UTILITY
  ***********************************************************/
@@ -1302,12 +1502,12 @@ function generateUID() {
 function convertNumberToWords(num) {
 
   const a = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six',
-             'Seven', 'Eight', 'Nine', 'Ten', 'Eleven', 'Twelve',
-             'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen',
-             'Seventeen', 'Eighteen', 'Nineteen'];
+    'Seven', 'Eight', 'Nine', 'Ten', 'Eleven', 'Twelve',
+    'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen',
+    'Seventeen', 'Eighteen', 'Nineteen'];
 
   const b = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty',
-             'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+    'Sixty', 'Seventy', 'Eighty', 'Ninety'];
 
   function inWords(n) {
 
