@@ -1,3936 +1,1577 @@
-<!DOCTYPE html>
-<html>
+/***********************************************************
+ *  BILL MANAGEMENT WEB APP — BACKEND (Code.gs)
+ *  Rawalwasia — Dispatch Billing Portal
+ ***********************************************************/
+
+const CONFIG = {
+
+  DISPATCH_SS_ID: "1ID0zC4QlPkuXy2AWne8HWWGhhb6p3KvNmOAZ9QvlT-I",
+  TRIAL_BILL_SS_ID: "1Rds83DNUqc6b4XIIgRaKmNcaavhikILVFqLU9zFm0fU",
+  VESSEL_SS_ID: "18K2e26aqKxxrJwoK7kY-E5S9G5jXdW_008PjlXF3P3k",
+  SALES_ORDER_SS_ID: "1c43xNhc317sruTtmpDhUJd8XpJuyiCR9DFOpMXZBffY",
+  CLAIMS_SS_ID: "19oIepsXlPjmm_clyM5aufFVyEazQCOrL2Zi7W9ulGsQ",
+
+  DISPATCH_SHEET: "Dispatch Data",
+  BILL_SUBMIT_SHEET: "Bill Submit",
+  SALES_ORDER_SHEET: "Sales Order",
+  DO_FORM_SHEET: "DO Form",
+  USER_SHEET: "Users",
+  CLAIMS_SHEET: "Claims",
+  BILLER_SHEET: "Biller",
+
+  ALLOWED_DOMAIN: "@rawalwasia.in",
+  CLAIM_TTL_MS: 5 * 60 * 1000,    // claims expire after 5 minutes
+
+  // Dispatch columns (1-based)
+  COL_IN_NO: 2,
+  COL_INTIME: 3,
+  COL_OUTTIME: 16,
+  COL_PARTY: 8,
+  COL_DONO: 9,
+  COL_FROM: 5,
+  COL_TERM: 34,
+  COL_DESTINATION: 15,
+  COL_VESSELNAME: 11,
+  COL_TRADER: 12,
+  COL_TRUCK: 14,
+  COL_TRANSPORTER: 13,
+  COL_TRANSPORTPURCHASERATE: 23,
+  COL_PDO: 10,
+  COL_PDO_TYPE: 33,
+  COL_GROSSWEIGHT: 19,
+  COL_TAREWEIGHT: 20,
+  COL_SOTYPE: 18,
+  COL_SONO: 4,
+  COL_SEALNO: 28,
+  COL_NET_WEIGHT: 21,
+  COL_REMARKS: 32
+
+};
+
+/***********************************************************
+ *  WEB APP ENTRY POINT
+ ***********************************************************/
+function doGet() {
+
+  const email = Session.getActiveUser().getEmail();
+
+  if (
+    !email ||
+    !email.endsWith(CONFIG.ALLOWED_DOMAIN)
+  ) {
+
+    return HtmlService
+      .createHtmlOutput(
+        "<div style='font-family:sans-serif;padding:40px;text-align:center;'>" +
+        "<h2>Access Restricted</h2>" +
+        "<p>This portal is only available to authorized company accounts.</p>" +
+        "</div>"
+      );
 
-<head>
-  <base target="_top">
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link
-    href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap"
-    rel="stylesheet">
-
-  <style>
-    /* ============ THEME VARIABLES ============ */
-    :root {
-      /* Light Theme (Default) */
-      --ink: #16243A;
-      --ink-soft: #233650;
-      --steel: #3F6E8C;
-      --steel-light: #E8EEF2;
-      --amber: #E8965A;
-      --amber-soft: #FBE6D7;
-      --paper: #F6F4EF;
-      --card: #FFFFFF;
-      --line: #DEDAD2;
-      --line-strong: #C7CDD4;
-      --forest: #4F8567;
-      --forest-soft: #E4F0E8;
-      --rust: #C75D4D;
-      --rust-soft: #FBE6E3;
-      --ink-muted: #6B7785;
-
-      /* Semantic Additions for Theme Switching */
-      --rail-bg: #16243A;
-      --rail-text: #FFFFFF;
-      --rail-text-muted: rgba(255, 255, 255, 0.62);
-      --rail-border: rgba(255, 255, 255, 0.08);
-      --rail-hover: rgba(255, 255, 255, 0.06);
-
-      --toast-bg: #16243A;
-      --toast-text: #FFFFFF;
-      --btn-primary-bg: #16243A;
-      --btn-primary-text: #FFFFFF;
-      --btn-primary-hover: #233650;
-
-      --shadow-card: 0 1px 2px rgba(22, 36, 58, 0.04), 0 4px 16px rgba(22, 36, 58, 0.06);
-      --shadow-pop: 0 8px 24px rgba(22, 36, 58, 0.12);
-
-      --radius: 14px;
-      --radius-sm: 8px;
-    }
-
-    [data-theme="dark"] {
-      /* Dark Theme Overrides */
-      --ink: #F9FAFB;
-      --ink-soft: #D1D5DB;
-      --steel: #60A5FA;
-      --steel-light: #1F2937;
-      --amber: #FBBF24;
-      --amber-soft: rgba(251, 191, 36, 0.15);
-      --paper: #0B0F19;
-      /* Dark background */
-      --card: #111827;
-      /* Dark card background */
-      --line: #374151;
-      --line-strong: #4B5563;
-      --forest: #34D399;
-      --forest-soft: rgba(52, 211, 153, 0.15);
-      --rust: #F87171;
-      --rust-soft: rgba(248, 113, 113, 0.15);
-      --ink-muted: #9CA3AF;
-
-      --rail-bg: #030712;
-      --rail-text: #F9FAFB;
-      --rail-text-muted: rgba(255, 255, 255, 0.5);
-      --rail-border: rgba(255, 255, 255, 0.05);
-      --rail-hover: rgba(255, 255, 255, 0.05);
-
-      --toast-bg: #1F2937;
-      --toast-text: #F9FAFB;
-      --btn-primary-bg: #374151;
-      --btn-primary-text: #F9FAFB;
-      --btn-primary-hover: #4B5563;
-
-      --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3), 0 4px 16px rgba(0, 0, 0, 0.4);
-      --shadow-pop: 0 8px 24px rgba(0, 0, 0, 0.5);
-    }
-
-    * {
-      box-sizing: border-box;
-    }
-
-    html,
-    body {
-      margin: 0;
-      padding: 0;
-      height: 100%;
-    }
-
-    body {
-      font-family: 'Inter', sans-serif;
-      background: var(--paper);
-      color: var(--ink);
-      -webkit-font-smoothing: antialiased;
-      transition: background 0.3s ease, color 0.3s ease;
-    }
-
-    /* ============ APP SHELL ============ */
-
-    .app {
-      display: flex;
-      min-height: 100vh;
-    }
-
-    /* ---------- SIDE NAV ---------- */
-
-    .rail {
-      width: 240px;
-      flex-shrink: 0;
-      background: var(--rail-bg);
-      color: var(--rail-text);
-      display: flex;
-      flex-direction: column;
-      padding: 28px 18px;
-      position: sticky;
-      top: 0;
-      height: 100vh;
-      transition: background 0.3s ease;
-    }
-
-    .brand {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      padding: 4px 10px 28px;
-      border-bottom: 1px solid var(--rail-border);
-      margin-bottom: 22px;
-    }
-
-    .brand-mark {
-      width: 38px;
-      height: 38px;
-      border-radius: 10px;
-      background: linear-gradient(145deg, #E8965A, #d97a43);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-family: 'Space Grotesk', sans-serif;
-      font-weight: 700;
-      font-size: 17px;
-      color: #16243A;
-      /* Hardcoded dark to contrast with amber background */
-      flex-shrink: 0;
-    }
-
-    .brand-text {
-      font-family: 'Space Grotesk', sans-serif;
-      line-height: 1.15;
-    }
-
-    .brand-text .b1 {
-      font-size: 15px;
-      font-weight: 700;
-      letter-spacing: 0.01em;
-    }
-
-    .brand-text .b2 {
-      font-size: 11px;
-      color: var(--rail-text-muted);
-      letter-spacing: 0.06em;
-      text-transform: uppercase;
-      margin-top: 2px;
-    }
-
-    .nav {
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-    }
-
-    .nav-item {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      padding: 11px 14px;
-      border-radius: var(--radius-sm);
-      color: var(--rail-text-muted);
-      font-size: 14px;
-      font-weight: 500;
-      cursor: pointer;
-      transition: background 0.15s ease, color 0.15s ease;
-      user-select: none;
-    }
-
-    .nav-item:hover {
-      background: var(--rail-hover);
-      color: var(--rail-text);
-    }
-
-    .nav-item.active {
-      background: rgba(232, 150, 90, 0.14);
-      color: var(--amber);
-    }
-
-    .nav-item svg {
-      width: 18px;
-      height: 18px;
-      flex-shrink: 0;
-    }
-
-    .nav-badge {
-      margin-left: auto;
-      background: var(--amber);
-      color: #16243A;
-      /* hardcoded for contrast on amber */
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 11px;
-      font-weight: 700;
-      padding: 1px 7px;
-      border-radius: 20px;
-      min-width: 20px;
-      text-align: center;
-    }
-
-    .rail-foot {
-      margin-top: auto;
-      padding-top: 18px;
-      border-top: 1px solid var(--rail-border);
-    }
-
-    /* THEME TOGGLE (DESKTOP) */
-    .theme-toggle-wrap {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 0 10px 12px;
-    }
-
-    .theme-btn {
-      background: transparent;
-      border: 1px solid var(--rail-border);
-      color: var(--rail-text-muted);
-      cursor: pointer;
-      border-radius: var(--radius-sm);
-      padding: 6px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      transition: all 0.15s ease;
-    }
-
-    .theme-btn:hover {
-      color: var(--rail-text);
-      background: var(--rail-hover);
-    }
-
-    .theme-btn svg {
-      width: 16px;
-      height: 16px;
-    }
-
-    .user-chip {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      padding: 8px 10px;
-      border-radius: var(--radius-sm);
-    }
-
-    .user-avatar {
-      width: 34px;
-      height: 34px;
-      border-radius: 50%;
-      background: var(--steel);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-family: 'Space Grotesk', sans-serif;
-      font-weight: 600;
-      font-size: 13px;
-      flex-shrink: 0;
-      color: #fff;
-    }
-
-    .user-meta {
-      overflow: hidden;
-    }
-
-    .user-name {
-      font-size: 13px;
-      font-weight: 600;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-
-    .user-email {
-      font-size: 11px;
-      color: var(--rail-text-muted);
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-
-    /* ---------- MAIN ---------- */
-
-    .main {
-      flex: 1;
-      min-width: 0;
-      padding: 36px 44px 60px;
-    }
-
-    .topbar {
-      display: flex;
-      align-items: flex-end;
-      justify-content: space-between;
-      margin-bottom: 28px;
-      flex-wrap: wrap;
-      gap: 16px;
-    }
-
-    .eyebrow {
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 11px;
-      letter-spacing: 0.14em;
-      text-transform: uppercase;
-      color: var(--steel);
-      margin: 0 0 6px;
-      font-weight: 600;
-    }
-
-    .page-title {
-      font-family: 'Space Grotesk', sans-serif;
-      font-size: 28px;
-      font-weight: 700;
-      margin: 0;
-      letter-spacing: -0.01em;
-    }
-
-    .page-sub {
-      font-size: 13.5px;
-      color: var(--ink-muted);
-      margin: 6px 0 0;
-    }
-
-    .view {
-      display: none;
-      animation: fadeIn 0.35s ease;
-    }
-
-    .view.active {
-      display: block;
-    }
-
-    @keyframes fadeIn {
-      from {
-        opacity: 0;
-        transform: translateY(6px);
-      }
-
-      to {
-        opacity: 1;
-        transform: translateY(0);
-      }
-    }
-
-    /* ============ CARDS / SECTIONS ============ */
-
-    .panel {
-      background: var(--card);
-      border: 1px solid var(--line);
-      border-radius: var(--radius);
-      box-shadow: var(--shadow-card);
-      transition: background 0.3s ease, border-color 0.3s ease;
-    }
-
-    .panel-head {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 18px 22px;
-      border-bottom: 1px solid var(--line);
-      gap: 12px;
-      flex-wrap: wrap;
-    }
-
-    .panel-head h2 {
-      font-family: 'Space Grotesk', sans-serif;
-      font-size: 16px;
-      font-weight: 600;
-      margin: 0;
-    }
-
-    .panel-body {
-      padding: 22px;
-    }
-
-    /* ============ FORM ELEMENTS ============ */
-
-    .field {
-      margin-bottom: 18px;
-    }
-
-    .field label {
-      display: block;
-      font-size: 12.5px;
-      font-weight: 600;
-      color: var(--ink-soft);
-      margin-bottom: 7px;
-      letter-spacing: 0.01em;
-    }
-
-    .field-hint {
-      font-size: 12px;
-      color: var(--ink-muted);
-      margin-top: 6px;
-    }
-
-    select,
-    input[type="text"] {
-      width: 100%;
-      padding: 11px 14px;
-      border: 1px solid var(--line-strong);
-      border-radius: var(--radius-sm);
-      font-family: 'Inter', sans-serif;
-      font-size: 14px;
-      background: var(--card);
-      color: var(--ink);
-      transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.3s ease;
-      appearance: none;
-    }
-
-    select {
-      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%236B7785' stroke-width='1.6' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
-      background-repeat: no-repeat;
-      background-position: right 14px center;
-      padding-right: 38px;
-    }
-
-    select:focus,
-    input[type="text"]:focus {
-      outline: none;
-      border-color: var(--steel);
-      box-shadow: 0 0 0 3px rgba(63, 110, 140, 0.13);
-    }
-
-    input[readonly] {
-      background: var(--steel-light);
-      color: var(--ink-soft);
-      cursor: not-allowed;
-    }
-
-    input.mono,
-    .mono {
-      font-family: 'JetBrains Mono', monospace;
-    }
-
-    .field-row {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 16px;
-    }
-
-    @media (max-width: 720px) {
-      .field-row {
-        grid-template-columns: 1fr;
-      }
-    }
-
-    /* bilty input wrapper — for the check indicator */
-    .bilty-wrap {
-      position: relative;
-    }
-
-    .bilty-wrap input {
-      padding-right: 40px;
-    }
-
-    .bilty-status {
-      position: absolute;
-      right: 12px;
-      top: 50%;
-      transform: translateY(-50%);
-      display: none;
-      align-items: center;
-      justify-content: center;
-      width: 20px;
-      height: 20px;
-    }
-
-    .bilty-status.show {
-      display: flex;
-    }
-
-    .bilty-status svg {
-      width: 18px;
-      height: 18px;
-    }
-
-    /* ============ BUTTONS ============ */
-
-    .btn {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      padding: 11px 20px;
-      border-radius: var(--radius-sm);
-      font-family: 'Inter', sans-serif;
-      font-size: 13.5px;
-      font-weight: 600;
-      border: 1px solid transparent;
-      cursor: pointer;
-      transition: transform 0.08s ease, box-shadow 0.15s ease, background 0.15s ease, opacity 0.15s ease, color 0.15s ease;
-      white-space: nowrap;
-    }
-
-    .btn:active {
-      transform: scale(0.98);
-    }
-
-    .btn-primary {
-      background: var(--btn-primary-bg);
-      color: var(--btn-primary-text);
-    }
-
-    .btn-primary:hover {
-      background: var(--btn-primary-hover);
-    }
-
-    .btn-amber {
-      background: var(--amber);
-      color: #16243A;
-      /* Keep contrast solid in light and dark */
-    }
-
-    .btn-amber:hover {
-      box-shadow: 0 4px 14px rgba(232, 150, 90, 0.4);
-    }
-
-    .btn-ghost {
-      background: transparent;
-      border-color: var(--line-strong);
-      color: var(--ink-soft);
-    }
-
-    .btn-ghost:hover {
-      background: var(--steel-light);
-      border-color: var(--steel);
-    }
-
-    .btn:disabled {
-      opacity: 0.55;
-      cursor: not-allowed;
-      transform: none;
-    }
-
-    .btn svg {
-      width: 15px;
-      height: 15px;
-    }
-
-    .btn.full {
-      width: 100%;
-      justify-content: center;
-      padding: 13px 20px;
-      font-size: 14px;
-    }
-
-    .spin {
-      animation: spin 0.8s linear infinite;
-    }
-
-    @keyframes spin {
-      to {
-        transform: rotate(360deg);
-      }
-    }
-
-    /* ── ALERT BOXES ───────────────────────────────────── */
-    .alert-box {
-      display: none;
-      border-radius: var(--radius-sm);
-      padding: 13px 16px;
-      margin-bottom: 16px;
-      font-size: 13.5px;
-      animation: fadeIn .25s ease;
-    }
-
-    .alert-box.show {
-      display: flex;
-      align-items: flex-start;
-      gap: 10px;
-    }
-
-    .alert-box svg {
-      width: 17px;
-      height: 17px;
-      flex-shrink: 0;
-      margin-top: 1px;
-    }
-
-    /* claim warning — amber */
-    .alert-claim {
-      background: var(--marigold-soft);
-      border: 1px solid rgba(196, 127, 23, .3);
-      color: #7a4f0a;
-    }
-
-    .alert-claim svg {
-      color: var(--marigold);
-    }
-
-    /* bilty duplicate — rust */
-    .alert-bilty {
-      background: var(--rust-soft);
-      border: 1px solid rgba(199, 93, 77, .3);
-      color: #7a2219;
-    }
-
-    .alert-bilty svg {
-      color: var(--rust);
-    }
-
-    /* mismatch warning — amber */
-    .alert-mismatch {
-      background: var(--marigold-soft);
-      border: 1px solid rgba(196, 127, 23, .3);
-      color: #7a4f0a;
-    }
-
-    .alert-mismatch svg {
-      color: var(--marigold);
-    }
-
-    .alert-body {
-      flex: 1;
-    }
-
-    .alert-body b {
-      display: block;
-      font-weight: 700;
-      margin-bottom: 3px;
-    }
-
-    /* ── CONFIRM DIALOG (mismatch) ─────────────────────── */
-    .dialog-overlay {
-      display: none;
-      position: fixed;
-      inset: 0;
-      background: rgba(22, 36, 58, .5);
-      backdrop-filter: blur(3px);
-      z-index: 1000;
-      align-items: center;
-      justify-content: center;
-      padding: 20px;
-    }
-
-    .dialog-overlay.show {
-      display: flex;
-      animation: fadeIn .2s ease;
-    }
-
-    .dialog {
-      background: var(--card);
-      border-radius: var(--radius);
-      box-shadow: var(--shadow-pop);
-      width: 100%;
-      max-width: 440px;
-      overflow: hidden;
-    }
-
-    .dialog-head {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      padding: 18px 20px;
-      border-bottom: 1px solid var(--line);
-      background: var(--marigold-soft);
-    }
-
-    .dialog-head svg {
-      width: 22px;
-      height: 22px;
-      color: var(--marigold);
-      flex-shrink: 0;
-    }
-
-    .dialog-head h3 {
-      font-family: 'Space Grotesk', sans-serif;
-      font-size: 16px;
-      font-weight: 700;
-      margin: 0;
-      color: var(--ink);
-    }
-
-    .dialog-body {
-      padding: 18px 20px;
-    }
-
-    .dialog-body p {
-      font-size: 13.5px;
-      color: var(--ink-soft);
-      margin: 0 0 14px;
-      line-height: 1.55;
-    }
-
-    .mismatch-list {
-      list-style: none;
-      margin: 0 0 16px;
-      padding: 0;
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
-
-    .mismatch-list li {
-      display: flex;
-      align-items: flex-start;
-      gap: 10px;
-      font-size: 13px;
-      background: var(--rust-soft);
-      border-radius: 6px;
-      padding: 10px 12px;
-      border-left: 3px solid var(--rust);
-    }
-
-    .mismatch-list li svg {
-      width: 14px;
-      height: 14px;
-      color: var(--rust);
-      flex-shrink: 0;
-      margin-top: 1px;
-    }
-
-    .mismatch-list .m-pair {
-      display: flex;
-      flex-direction: column;
-      gap: 3px;
-    }
-
-    .mismatch-list .m-field {
-      font-weight: 700;
-      color: var(--ink);
-      font-size: 12px;
-      text-transform: uppercase;
-      letter-spacing: .05em;
-    }
-
-    .mismatch-list .m-vals {
-      color: var(--ink-soft);
-    }
-
-    .mismatch-list .m-vals span {
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 12px;
-    }
-
-    .mismatch-list .arr {
-      color: var(--rust);
-      margin: 0 4px;
-    }
-
-    .dialog-foot {
-      display: flex;
-      gap: 10px;
-      padding: 14px 20px;
-      border-top: 1px solid var(--line);
-      justify-content: flex-end;
-    }
-
-    /* ============ DETAILS GRID (manifest) ============ */
-
-    .manifest {
-      border: 1px solid var(--line);
-      border-radius: var(--radius-sm);
-      background: var(--steel-light);
-      padding: 18px 20px;
-      margin-bottom: 22px;
-      display: none;
-      transition: background 0.3s ease, border-color 0.3s ease;
-    }
-
-    .manifest.show {
-      display: block;
-      animation: fadeIn 0.3s ease;
-    }
-
-    .manifest-head {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-bottom: 14px;
-      padding-bottom: 12px;
-      border-bottom: 1px dashed var(--line-strong);
-    }
-
-    .manifest-head .label {
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 11px;
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
-      color: var(--steel);
-      font-weight: 600;
-    }
-
-    .manifest-head .inno {
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 16px;
-      font-weight: 700;
-      color: var(--ink);
-    }
-
-    .manifest-grid {
-      display: grid;
-      grid-template-columns: repeat(2, 1fr);
-      gap: 14px 28px;
-    }
-
-    @media (max-width: 720px) {
-      .manifest-grid {
-        grid-template-columns: 1fr;
-      }
-    }
-
-    .m-item {
-      display: flex;
-      flex-direction: column;
-      gap: 3px;
-    }
-
-    .m-item .m-label {
-      font-size: 11px;
-      font-weight: 600;
-      color: var(--ink-muted);
-      text-transform: uppercase;
-      letter-spacing: 0.07em;
-    }
-
-    .m-item .m-value {
-      font-size: 14px;
-      font-weight: 500;
-      color: var(--ink);
-      word-break: break-word;
-    }
-
-    .m-item .m-value.mono {
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 13.5px;
-    }
-
-    .m-flag {
-      padding: 2px 8px;
-      border-radius: 5px;
-      font-size: 12.5px;
-      font-weight: 700;
-    }
-
-    .m-flag.bad {
-      background: var(--rust-soft);
-      color: var(--rust);
-    }
-
-    .m-flag.ok {
-      background: var(--forest-soft);
-      color: var(--forest);
-    }
-
-    .m-divider {
-      grid-column: 1 / -1;
-      height: 1px;
-      background: var(--line);
-      margin: 4px 0;
-    }
-
-    /* ============ PENDING TICKETS ============ */
-
-    .ticket-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-      gap: 16px;
-    }
-
-    .ticket {
-      position: relative;
-      border: 1px solid var(--line);
-      border-radius: var(--radius-sm);
-      /* Transparent cutouts effect adapted for theme via linear gradients */
-      background:
-        radial-gradient(circle at 0 50%, transparent 7px, var(--card) 7.5px),
-        radial-gradient(circle at 100% 50%, transparent 7px, var(--card) 7.5px);
-      background-size: 100% 100%;
-      padding: 16px 18px;
-      cursor: pointer;
-      transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.1s ease;
-      overflow: hidden;
-    }
-
-    .ticket::before {
-      content: "";
-      position: absolute;
-      top: 18px;
-      bottom: 18px;
-      left: 56px;
-      width: 0;
-      border-left: 1px dashed var(--line-strong);
-    }
-
-    .ticket:hover {
-      border-color: var(--steel);
-      box-shadow: var(--shadow-pop);
-      transform: translateY(-2px);
-    }
-
-    .ticket.selected {
-      border-color: var(--amber);
-      box-shadow: 0 0 0 3px rgba(232, 150, 90, 0.18);
-    }
-
-    .ticket-top {
-      display: flex;
-      align-items: center;
-      gap: 14px;
-      margin-bottom: 10px;
-    }
-
-    .ticket-stub {
-      width: 42px;
-      flex-shrink: 0;
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 10px;
-      font-weight: 700;
-      color: var(--ink-muted);
-      text-align: center;
-      writing-mode: vertical-rl;
-      text-orientation: mixed;
-      letter-spacing: 0.12em;
-    }
-
-    .ticket-main {
-      flex: 1;
-      padding-left: 14px;
-    }
-
-    .ticket-inno {
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 15px;
-      font-weight: 700;
-      color: var(--ink);
-      letter-spacing: 0.01em;
-    }
-
-    .ticket-meta {
-      padding-left: 56px;
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-    }
-
-    .ticket-meta-row {
-      display: flex;
-      justify-content: space-between;
-      font-size: 12.5px;
-      color: var(--ink-muted);
-    }
-
-    .ticket-meta-row b {
-      color: var(--ink-soft);
-      font-weight: 600;
-    }
-
-    .stamp {
-      position: absolute;
-      top: 14px;
-      right: -10px;
-      font-family: 'Space Grotesk', sans-serif;
-      font-size: 10px;
-      font-weight: 700;
-      letter-spacing: 0.14em;
-      text-transform: uppercase;
-      padding: 3px 14px;
-      transform: rotate(8deg);
-      border-radius: 3px;
-    }
-
-    .stamp.pending {
-      background: var(--amber-soft);
-      color: #c1773f;
-      /* adjusted automatically by theme context generally, but fixed here works */
-      border: 1px solid rgba(193, 119, 63, 0.3);
-    }
-
-    .stamp.billed {
-      background: var(--forest-soft);
-      color: var(--forest);
-      border: 1px solid rgba(79, 133, 103, 0.3);
-    }
-
-    .ticket-claim-bar {
-      margin-top: 8px;
-      padding: 6px 10px;
-      padding-left: 56px;
-      font-size: 12px;
-      color: var(--marigold);
-      font-weight: 600;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-
-    .ticket-claim-bar svg {
-      width: 12px;
-      height: 12px;
-      flex-shrink: 0;
-    }
-
-    /* ============ TABLE (history) ============ */
-
-    .table-wrap {
-      overflow-x: auto;
-    }
-
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 13.5px;
-    }
-
-    thead th {
-      text-align: left;
-      font-size: 11px;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      color: var(--ink-muted);
-      font-weight: 600;
-      padding: 0 16px 12px;
-      border-bottom: 1px solid var(--line);
-      white-space: nowrap;
-    }
-
-    tbody td {
-      padding: 13px 16px;
-      border-bottom: 1px solid var(--line);
-      white-space: nowrap;
-      color: var(--ink-soft);
-    }
-
-    tbody tr:last-child td {
-      border-bottom: none;
-    }
-
-    tbody tr:hover {
-      background: var(--steel-light);
-    }
-
-    td.mono {
-      font-family: 'JetBrains Mono', monospace;
-    }
-
-    .pill {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 4px 10px;
-      border-radius: 20px;
-      background: var(--forest-soft);
-      color: var(--forest);
-      font-size: 12px;
-      font-weight: 600;
-    }
-
-    .pill::before {
-      content: "";
-      width: 6px;
-      height: 6px;
-      border-radius: 50%;
-      background: var(--forest);
-    }
-
-    .by-cell {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-
-    .by-avatar {
-      width: 24px;
-      height: 24px;
-      border-radius: 50%;
-      background: var(--steel);
-      color: #fff;
-      font-family: 'Space Grotesk', sans-serif;
-      font-size: 10px;
-      font-weight: 700;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      flex-shrink: 0;
-    }
-
-    /* ============ EMPTY / LOADING STATES ============ */
-
-    .empty-state {
-      text-align: center;
-      padding: 56px 20px;
-      color: var(--ink-muted);
-    }
-
-    .empty-state svg {
-      width: 46px;
-      height: 46px;
-      color: var(--line-strong);
-      margin-bottom: 14px;
-    }
-
-    .empty-state h3 {
-      font-family: 'Space Grotesk', sans-serif;
-      font-size: 15px;
-      color: var(--ink-soft);
-      margin: 0 0 6px;
-      font-weight: 600;
-    }
-
-    .empty-state p {
-      font-size: 13px;
-      margin: 0;
-    }
-
-    .skeleton {
-      background: linear-gradient(90deg, var(--steel-light) 25%, var(--line) 37%, var(--steel-light) 63%);
-      background-size: 400% 100%;
-      animation: shimmer 1.4s ease infinite;
-      border-radius: var(--radius-sm);
-    }
-
-    @keyframes shimmer {
-      0% {
-        background-position: 100% 50%;
-      }
-
-      100% {
-        background-position: 0 50%;
-      }
-    }
-
-    .skel-ticket {
-      height: 96px;
-    }
-
-    /* ============ TOAST ============ */
-
-    #toastContainer {
-      position: fixed;
-      top: 22px;
-      right: 22px;
-      z-index: 9999;
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-    }
-
-    .toast {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      padding: 13px 18px;
-      border-radius: var(--radius-sm);
-      background: var(--toast-bg);
-      color: var(--toast-text);
-      font-size: 13.5px;
-      font-weight: 500;
-      box-shadow: var(--shadow-pop);
-      min-width: 240px;
-      max-width: 360px;
-      animation: toastIn 0.25s ease;
-    }
-
-    .toast.success {
-      background: var(--forest);
-      color: #fff;
-    }
-
-    .toast.danger {
-      background: var(--rust);
-      color: #fff;
-    }
-
-    .toast svg {
-      width: 17px;
-      height: 17px;
-      flex-shrink: 0;
-    }
-
-    @keyframes toastIn {
-      from {
-        opacity: 0;
-        transform: translateX(20px);
-      }
-
-      to {
-        opacity: 1;
-        transform: translateX(0);
-      }
-    }
-
-    /* ============ SYNC STATUS BAR ============ */
-
-    .sync-bar {
-      padding: 12px 10px 16px;
-      border-top: 1px solid var(--rail-border);
-      margin-bottom: 12px;
-    }
-
-    .sync-row {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-
-    .sync-dot {
-      width: 7px;
-      height: 7px;
-      border-radius: 50%;
-      background: var(--forest);
-      flex-shrink: 0;
-      transition: background 0.3s ease;
-    }
-
-    .sync-dot.syncing {
-      background: var(--amber);
-      animation: pulse-dot 1s ease-in-out infinite;
-    }
-
-    .sync-dot.error {
-      background: var(--rust);
-    }
-
-    @keyframes pulse-dot {
-
-      0%,
-      100% {
-        opacity: 1;
-        transform: scale(1);
-      }
-
-      50% {
-        opacity: 0.5;
-        transform: scale(0.7);
-      }
-    }
-
-    .sync-label {
-      font-size: 11.5px;
-      color: var(--rail-text-muted);
-      line-height: 1.3;
-      flex: 1;
-    }
-
-    .sync-label b {
-      display: block;
-      color: var(--rail-text);
-      font-size: 11px;
-      font-weight: 600;
-      letter-spacing: 0.02em;
-    }
-
-    .sync-time {
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 10.5px;
-      color: var(--rail-text-muted);
-      margin-top: 4px;
-      padding-left: 15px;
-    }
-
-    .sync-progress {
-      height: 2px;
-      background: var(--rail-border);
-      border-radius: 2px;
-      margin-top: 10px;
-      overflow: hidden;
-    }
-
-    .sync-progress-bar {
-      height: 100%;
-      background: var(--steel);
-      border-radius: 2px;
-      width: 0%;
-      transition: width 1s linear;
-    }
-
-    /* ============ NEW ITEMS BANNER ============ */
-
-    .new-banner {
-      display: none;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-      background: linear-gradient(135deg, rgba(79, 133, 103, 0.2), rgba(79, 133, 103, 0.4));
-      border: 1px solid rgba(79, 133, 103, 0.35);
-      border-radius: var(--radius-sm);
-      padding: 12px 16px;
-      margin-bottom: 18px;
-      animation: slideDown 0.3s ease;
-    }
-
-    .new-banner.show {
-      display: flex;
-    }
-
-    @keyframes slideDown {
-      from {
-        opacity: 0;
-        transform: translateY(-8px);
-      }
-
-      to {
-        opacity: 1;
-        transform: translateY(0);
-      }
-    }
-
-    .new-banner-text {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      font-size: 13.5px;
-      color: var(--forest);
-    }
-
-    .new-banner-text svg {
-      width: 16px;
-      height: 16px;
-      color: var(--forest);
-      flex-shrink: 0;
-    }
-
-    .new-banner-text b {
-      color: var(--ink);
-    }
-
-    .new-banner-btn {
-      font-size: 12px;
-      font-weight: 600;
-      padding: 6px 12px;
-      border-radius: 6px;
-      background: var(--forest);
-      color: #fff;
-      border: none;
-      cursor: pointer;
-      white-space: nowrap;
-      transition: opacity 0.15s ease;
-    }
-
-    .new-banner-btn:hover {
-      opacity: 0.85;
-    }
-
-    /* ============ MOBILE NAV ============ */
-
-    .mobile-bar {
-      display: none;
-    }
-
-    @media (max-width: 880px) {
-      .rail {
-        display: none;
-      }
-
-      .mobile-bar {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        background: var(--rail-bg);
-        color: var(--rail-text);
-        padding: 14px 18px;
-        position: sticky;
-        top: 0;
-        z-index: 100;
-        transition: background 0.3s ease;
-      }
-
-      .mobile-bar .brand {
-        border-bottom: none;
-        padding: 0;
-        margin: 0;
-      }
-
-      .mobile-nav {
-        display: flex;
-        gap: 6px;
-        align-items: center;
-      }
-
-      .mobile-nav .nav-item {
-        padding: 8px 10px;
-        font-size: 0;
-        color: var(--rail-text-muted);
-      }
-
-      .mobile-nav .nav-item svg {
-        width: 19px;
-        height: 19px;
-      }
-
-      .mobile-nav .nav-item.active {
-        color: var(--amber);
-        background: rgba(232, 150, 90, 0.14);
-      }
-
-      .main {
-        padding: 24px 18px 50px;
-      }
-
-      .page-title {
-        font-size: 22px;
-      }
-    }
-
-    /* ── CHALLAN PREVIEW ───────────────────────────────── */
-    .challan-layout {
-      display: grid;
-      grid-template-columns: 320px 1fr;
-      gap: 28px;
-      align-items: flex-start;
-    }
-
-    @media(max-width: 1100px) {
-      .challan-layout {
-        grid-template-columns: 1fr;
-      }
-    }
-
-    .challan-preview-wrap {
-      background: #b8b0a4;
-      border-radius: var(--radius);
-      padding: 28px 22px;
-      display: flex;
-      flex-direction: column;
-      align-items: flex-start;
-      ;
-      gap: 12px;
-      min-height: 600px;
-      box-shadow: inset 0 2px 10px rgba(0, 0, 0, .2);
-    }
-
-    .preview-label {
-      font-size: 11px;
-      color: #5a544e;
-      font-weight: 700;
-      letter-spacing: .1em;
-      text-transform: uppercase;
-      align-self: flex-start;
-    }
-
-    /* A4 paper — both copies on one sheet */
-    .challan-paper {
-      background: #fff;
-      width: 100%;
-      max-width: 660px;
-      box-shadow: 0 6px 28px rgba(0, 0, 0, .32), 0 1px 4px rgba(0, 0, 0, .15);
-      border-radius: 1px;
-      display: none;
-      padding: 16px 16px 18px;
-    }
-
-    .challan-paper.show {
-      display: block;
-      animation: fadeIn .3s ease;
-    }
-
-    /* Shared challan block styles */
-    .challan-block {
-      font-family: Calibri, Arial, sans-serif;
-      font-size: 11px;
-      color: #000;
-      line-height: 1.35;
-    }
-
-    .challan-block table {
-      width: 100%;
-      border-collapse: collapse;
-      border: 1.5px solid #000;
-    }
-
-    .challan-block td {
-      border: 1px solid #000;
-      padding: 4px 6px;
-      vertical-align: top;
-    }
-
-    .ch-title {
-      font-size: 15px;
-      font-weight: bold;
-      text-align: center;
-    }
-
-    .ch-copy-cell {
-      text-align: center;
-      font-style: italic;
-      font-size: 10px;
-      color: #444;
-      vertical-align: middle !important;
-      width: 66px;
-      background: #f6f6f6;
-    }
-
-    .ch-header-cell {
-      text-align: center;
-      padding: 6px 8px !important;
-    }
-
-    .ch-company {
-      font-size: 13px;
-      font-weight: bold;
-      margin-bottom: 2px;
-    }
-
-    .ch-address {
-      font-size: 10px;
-      line-height: 1.5;
-    }
-
-    .ch-label {
-      font-weight: bold;
-    }
-
-    .ch-addr-cell {
-      min-height: 50px;
-      height: 120px;
-    }
-
-    .ch-field-label {
-      font-weight: bold;
-      white-space: nowrap;
-      width: 68px;
-    }
-
-    .ch-field-value {
-      text-align: center;
-      height: 24px;
-    }
-
-    .ch-to-cell {
-      height: 40px;
-      /* fixed height */
-      max-height: 40px;
-      overflow: hidden;
-      line-height: 1.2;
-      word-break: break-word;
-    }
-
-    .ch-mat-head td {
-      text-align: center;
-      font-weight: bold;
-      font-size: 10px;
-      background: #f0f0f0;
-      padding: 4px 5px;
-    }
-
-    .ch-mat-data td {
-      text-align: center;
-      font-size: 11px;
-    }
-
-    .ch-decl-cell {
-      font-size: 10px;
-      line-height: 1.6;
-    }
-
-    .ch-auth-cell {
-      text-align: center;
-      font-weight: bold;
-      font-size: 10.5px;
-      vertical-align: top !important;
-    }
-
-    .ch-sig-cell {
-      height: 50px;
-      vertical-align: bottom !important;
-      text-align: center;
-      font-weight: bold;
-      font-size: 10px;
-      padding-bottom: 4px !important;
-    }
-
-    .ch-footer td {
-      text-align: center;
-      font-weight: bold;
-      font-size: 10px;
-      padding: 3px;
-    }
-
-    /* Dashed separator between Original and Duplicate */
-    .challan-sep {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      margin: 10px 0;
-      width: 100%;
-    }
-
-    .challan-sep::before,
-    .challan-sep::after {
-      content: "";
-      flex: 1;
-      border-top: 1.5px dashed #aaa;
-    }
-
-    .challan-sep span {
-      font-size: 9.5px;
-      color: #999;
-      white-space: nowrap;
-      letter-spacing: .08em;
-      font-family: Arial, sans-serif;
-    }
-
-    .challan-empty {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 14px;
-      flex: 1;
-      min-height: 500px;
-      color: #8a8078;
-      width: 100%;
-    }
-
-    .challan-empty svg {
-      width: 52px;
-      height: 52px;
-      color: #a8a09a;
-    }
-
-    .challan-empty p {
-      font-size: 14px;
-      margin: 0;
-      text-align: center;
-    }
-
-    .print-actions {
-      display: flex;
-      gap: 10px;
-      flex-wrap: wrap;
-      justify-content: center;
-    }
-
-    /* ── PRINT CHALLAN MEDIA ───────────────────────────────────── */
-    @media print {
-      @page {
-        size: A4;
-        margin: 7mm 10mm;
-      }
-
-      body>*:not(#challanPrintArea):not(#weighmentPrintArea) {
-        display: none !important;
-      }
-
-      #challanPrintArea {
-        display: block !important;
-        position: static !important;
-        width: 100%;
-      }
-
-      #challanPrintArea .challan-block {
-        font-family: Calibri, Arial, sans-serif;
-        font-size: 10.5pt;
-        color: #000;
-        line-height: 1.35;
-        page-break-inside: avoid;
-      }
-
-      #challanPrintArea .challan-block table {
-        width: 100%;
-        border-collapse: collapse;
-        border: 1.5px solid #000;
-      }
-
-      #challanPrintArea .challan-block td {
-        border: 1px solid #000;
-        padding: 4px 6px;
-        vertical-align: top;
-      }
-
-      #challanPrintArea .ch-title {
-        font-size: 14pt;
-        font-weight: bold;
-        text-align: center;
-      }
-
-      #challanPrintArea .ch-copy-cell {
-        text-align: center;
-        font-style: italic;
-        font-size: 9pt;
-        background: #f6f6f6;
-        vertical-align: middle;
-      }
-
-      #challanPrintArea .ch-header-cell {
-        text-align: center;
-        padding: 5px 8px;
-      }
-
-      #challanPrintArea .ch-company {
-        font-size: 13pt;
-        font-weight: bold;
-      }
-
-      #challanPrintArea .ch-address {
-        font-size: 9pt;
-        line-height: 1.5;
-      }
-
-      #challanPrintArea .ch-label {
-        font-weight: bold;
-      }
-
-      #challanPrintArea .ch-field-label {
-        font-weight: bold;
-        white-space: nowrap;
-      }
-
-      #challanPrintArea .ch-field-value {
-        text-align: center;
-      }
-
-      #challanPrintArea .ch-mat-head td {
-        text-align: center;
-        font-weight: bold;
-        background: #f0f0f0;
-      }
-
-      #challanPrintArea .ch-mat-data td {
-        text-align: center;
-      }
-
-      #challanPrintArea .ch-decl-cell {
-        font-size: 9pt;
-        line-height: 1.6;
-      }
-
-      #challanPrintArea .ch-auth-cell {
-        text-align: center;
-        font-weight: bold;
-        vertical-align: top;
-      }
-
-      #challanPrintArea .ch-sig-cell {
-        height: 48px;
-        vertical-align: bottom;
-        text-align: center;
-        font-weight: bold;
-      }
-
-      #challanPrintArea .ch-footer td {
-        text-align: center;
-        font-weight: bold;
-      }
-
-      #challanPrintArea .challan-sep {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        margin: 6mm 0;
-        width: 100%;
-      }
-
-      #challanPrintArea .challan-sep::before,
-      #challanPrintArea .challan-sep::after {
-        content: "";
-        flex: 1;
-        border-top: 1.5px dashed #888;
-      }
-
-      #challanPrintArea .challan-sep span {
-        font-size: 8pt;
-        color: #888;
-        white-space: nowrap;
-        font-family: Arial, sans-serif;
-      }
-    }
-
-    /* ── WEIGHMENT SLIP ────────────────────────────────── */
-    .ws-paper {
-      background: #ffffff !important;
-      width: 100%;
-      max-width: 820px;
-      box-shadow: 0 6px 28px rgba(0, 0, 0, .28), 0 1px 4px rgba(0, 0, 0, .15);
-      border-radius: 1px;
-      display: none;
-      padding: 18px 20px 22px;
-      font-family: Arial, Helvetica, sans-serif;
-      color: #000000 !important;
-      border: 2.5px solid #000000;
-      box-sizing: border-box;
-      overflow: hidden;
-    }
-
-    .ws-paper.show {
-      display: block;
-      animation: fadeIn .3s ease;
-    }
-
-    .ws-paper * {
-      color: #000000;
-      border-color: #000000;
-      box-sizing: border-box;
-    }
-
-    .ws-title {
-      font-family: 'Georgia', 'Times New Roman', serif;
-      font-size: 22px;
-      font-weight: bold;
-      text-align: center;
-      margin-bottom: 14px;
-      color: #000000;
-    }
-
-    .ws-header-block {
-      padding: 0 4px 14px;
-    }
-
-    .ws-header-row {
-      display: flex;
-      font-size: 13px;
-      line-height: 1.9;
-      color: #000000;
-      flex-wrap: wrap;
-    }
-
-    .ws-header-row .ws-label {
-      font-weight: bold;
-      width: 64px;
-      flex-shrink: 0;
-      color: #000000;
-    }
-
-    .ws-header-row .ws-value {
-      margin-right: 28px;
-      color: #000000;
-    }
-
-    /* Bordered grid table — FIXED layout so it never overflows its container */
-    .ws-table {
-      width: 100%;
-      table-layout: fixed;
-      border-collapse: collapse;
-      border: 2px solid #000000;
-      background: #ffffff;
-    }
-
-    .ws-table td {
-      box-sizing: border-box;
-      border-right: 1px solid #000000;
-      border-bottom: 1.5px solid #000000;
-      padding: 7px 8px;
-      font-size: 11.5px;
-      vertical-align: middle;
-      color: #000000;
-      background: #ffffff;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-
-    .ws-table tr td:last-child {
-      border-right: none;
-    }
-
-    .ws-table .ws-cell-label {
-      font-weight: bold;
-      color: #000000;
-    }
-
-    .ws-table .ws-cell-value {
-      color: #000000;
-    }
-
-    .ws-table .ws-cell-divider {
-      border-left: 1.5px solid #000000;
-    }
-
-    .ws-blank-row td {
-      height: 56px;
-      border-bottom: none;
-    }
-
-    .ws-sig-row td {
-      text-align: right;
-      font-weight: bold;
-      font-size: 13px;
-      padding-top: 0;
-      padding-bottom: 10px;
-      border-top: 2px solid #000000;
-      color: #000000;
-    }
-
-    .ws-edit-field {
-      width: 100%;
-      padding: 8px 10px;
-      border: 1px solid var(--line);
-      border-radius: 8px;
-      font-size: 13px;
-      background: #fff;
-    }
-
-    @media print {
-      #weighmentPrintArea .ws-paper {
-        display: block !important;
-        width: 100%;
-        max-width: 100%;
-        box-shadow: none !important;
-        border: 2.5px solid #000;
-        padding: 14mm 12mm 16mm;
-        font-family: Arial, Helvetica, sans-serif;
-        color: #000;
-        background: #fff;
-        box-sizing: border-box;
-        overflow: hidden;
-      }
-
-      #weighmentPrintArea .ws-title {
-        font-family: Georgia, 'Times New Roman', serif;
-        font-size: 20pt;
-        font-weight: bold;
-        text-align: center;
-        margin-bottom: 14px;
-        color: #000;
-      }
-
-      #weighmentPrintArea .ws-header-row {
-        font-size: 11.5pt;
-        line-height: 1.9;
-        display: flex;
-        flex-wrap: wrap;
-        color: #000;
-      }
-
-      #weighmentPrintArea .ws-header-row .ws-label {
-        font-weight: bold;
-        width: 64px;
-        flex-shrink: 0;
-        color: #000;
-      }
-
-      #weighmentPrintArea .ws-header-row .ws-value {
-        margin-right: 28px;
-        color: #000;
-      }
-
-      #weighmentPrintArea .ws-table {
-        width: 100%;
-        table-layout: fixed;
-        border-collapse: collapse;
-        border: 2px solid #000;
-        background: #fff;
-      }
-
-      #weighmentPrintArea .ws-table td {
-        border-right: 1px solid #000;
-        border-bottom: 1.5px solid #000;
-        padding: 7px 8px;
-        font-size: 10.5pt;
-        color: #000;
-        background: #fff;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-      }
-
-      #weighmentPrintArea .ws-table tr td:last-child {
-        border-right: none;
-      }
-
-      #weighmentPrintArea .ws-cell-label {
-        font-weight: bold;
-        color: #000;
-      }
-
-      #weighmentPrintArea .ws-cell-divider {
-        border-left: 1.5px solid #000;
-      }
-
-      #weighmentPrintArea .ws-blank-row td {
-        height: 56px;
-        border-bottom: none;
-      }
-
-      #weighmentPrintArea .ws-sig-row td {
-        text-align: right;
-        font-weight: bold;
-        font-size: 11pt;
-        border-top: 2px solid #000;
-        color: #000;
-      }
-    }
-  </style>
-</head>
-
-<body>
-
-  <script>
-    // Immediately initialize theme to avoid flash of unstyled content
-    (function() {
-      const savedTheme = localStorage.getItem('theme') || 'light';
-      document.documentElement.setAttribute('data-theme', savedTheme);
-    })();
-  </script>
-
-  <div id="toastContainer"></div>
-
-  <!-- ══ CHALLAN PRINT AREA (only visible when printing) ═══════ -->
-  <div id="challanPrintArea" style="display:none;">
-    <!-- populated by JS before window.print() -->
-  </div>
-
-  <div id="weighmentPrintArea" style="display:none;"></div>
-
-  <!-- ══ MISMATCH CONFIRM DIALOG ════════════════════════════════ -->
-  <div class="dialog-overlay" id="mismatchDialog">
-    <div class="dialog">
-      <div class="dialog-head">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-          stroke-linejoin="round">
-          <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
-          <line x1="12" y1="9" x2="12" y2="13" />
-          <line x1="12" y1="17" x2="12.01" y2="17" />
-        </svg>
-        <h3>Data mismatches detected</h3>
-      </div>
-      <div class="dialog-body">
-        <p>The following fields differ between the dispatch record and the sales order. Review carefully before
-          proceeding.</p>
-        <ul class="mismatch-list" id="mismatchList"></ul>
-        <p style="font-size:12.5px;color:var(--ink-muted);margin:0;">Mismatches may indicate a wrong IN number was
-          selected. Are you sure you want to create this bill?</p>
-      </div>
-      <div class="dialog-foot">
-        <button class="btn btn-ghost" onclick="closeDialog()">Cancel — go back</button>
-        <button class="btn btn-rust"  onclick="confirmSubmit()">Yes, create bill anyway</button>
-      </div>
-    </div>
-  </div>
-
-  <div class="app">
-
-    <!-- ══ RAIL ══════════════════════════════════════════════════ -->
-
-    <aside class="rail">
-
-      <div class="brand">
-        <div class="brand-mark">RW</div>
-        <div class="brand-text">
-          <div class="b1">Rawalwasia</div>
-          <div class="b2">Dispatch Billing</div>
-        </div>
-      </div>
-      <!-- ══ NAVIGATION ══════════════════════════════════════════════════ -->
-      <nav class="nav">
-        <div class="nav-item active" data-view="create" onclick="switchView('create')">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
-            stroke-linejoin="round">
-            <path d="M12 5v14M5 12h14" />
-          </svg>
-          Create Bill
-        </div>
-
-        <div class="nav-item" data-view="pending" onclick="switchView('pending')">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
-            stroke-linejoin="round">
-            <circle cx="12" cy="12" r="9" />
-            <path d="M12 7v5l3 3" />
-          </svg>
-          Pending Bills
-          <span class="nav-badge" id="pendingBadge">0</span>
-        </div>
-
-        <div class="nav-item" data-view="history" onclick="switchView('history')">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
-            stroke-linejoin="round">
-            <path d="M3 7h18M3 12h18M3 17h12" />
-          </svg>
-          Submitted Bills
-        </div>
-
-        <div class="nav-item" data-view="challan" onclick="switchView('challan')">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
-            stroke-linejoin="round">
-            <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
-            <polyline points="14 2 14 8 20 8" />
-            <line x1="16" y1="13" x2="8" y2="13" />
-            <line x1="16" y1="17" x2="8" y2="17" />
-            <polyline points="10 9 9 9 8 9" />
-          </svg>
-          Delivery Challan
-        </div>
-
-        <div class="nav-item" data-view="weighment" onclick="switchView('weighment')">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
-            stroke-linejoin="round">
-            <path
-              d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
-            <circle cx="12" cy="12" r="6" />
-          </svg>
-          Weighment Slip
-        </div>
-      </nav>
-
-      <div class="rail-foot">
-        <div class="theme-toggle-wrap">
-          <span style="font-size: 11px; color: var(--rail-text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;">Theme</span>
-          <button class="theme-btn" onclick="toggleTheme()" title="Toggle Theme">
-            <svg id="themeIconDesktop" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              </svg>
-          </button>
-        </div>
-
-        <div class="sync-bar">
-          <div class="sync-row">
-            <div class="sync-dot" id="syncDot"></div>
-            <div class="sync-label">
-              <b id="syncStatus">Live sync active</b>
-              <span id="syncAgo">Checking…</span>
-            </div>
-          </div>
-          <div class="sync-time" id="syncTimeExact"></div>
-          <div class="sync-progress">
-            <div class="sync-progress-bar" id="syncProgressBar"></div>
-          </div>
-        </div>
-
-        <div class="user-chip">
-          <div class="user-avatar" id="userAvatar">—</div>
-          <div class="user-meta">
-            <div class="user-name" id="userName">Loading…</div>
-            <div class="user-email" id="userEmail">—</div>
-          </div>
-        </div>
-      </div>
-
-    </aside>
-
-    <!-- ══ MOBILE BAR ════════════════════════════════════════════ -->
-    <div class="mobile-bar">
-      <div class="brand">
-        <div class="brand-mark">RW</div>
-        <div class="brand-text">
-          <div class="b1">Dispatch Billing</div>
-        </div>
-      </div>
-      <nav class="mobile-nav">
-        <button class="theme-btn" onclick="toggleTheme()" style="margin-right: 12px; padding: 4px;" title="Toggle Theme">
-          <svg id="themeIconMobile" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            </svg>
-        </button>
-
-        <div class="nav-item active" data-view="create" onclick="switchView('create')">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
-            stroke-linejoin="round">
-            <path d="M12 5v14M5 12h14" />
-          </svg>
-        </div>
-        <div class="nav-item" data-view="pending" onclick="switchView('pending')">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
-            stroke-linejoin="round">
-            <circle cx="12" cy="12" r="9" />
-            <path d="M12 7v5l3 3" />
-          </svg>
-        </div>
-        <div class="nav-item" data-view="history" onclick="switchView('history')">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
-            stroke-linejoin="round">
-            <path d="M3 7h18M3 12h18M3 17h12" />
-          </svg>
-        </div>
-        <div class="nav-item" data-view="challan" onclick="switchView('challan')">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
-            stroke-linejoin="round">
-            <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
-            <polyline points="14 2 14 8 20 8" />
-            <line x1="16" y1="13" x2="8" y2="13" />
-            <line x1="16" y1="17" x2="8" y2="17" />
-            <polyline points="10 9 9 9 8 9" />
-          </svg>
-          Delivery Challan
-        </div>
-        <div class="nav-item" data-view="weighment" onclick="switchView('weighment')">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
-            stroke-linejoin="round">
-            <path
-              d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
-            <circle cx="12" cy="12" r="6" />
-          </svg>
-          Weighment Slip
-        </div>
-      </nav>
-    </div>
-
-    <!-- ══ MAIN ══════════════════════════════════════════════════ -->
-    <main class="main">
-
-      <!-- ─── CREATE BILL ───────────────────────────────────── -->
-      <section class="view active" id="view-create">
-
-        <div class="topbar">
-          <div>
-            <p class="eyebrow">Page // 01</p>
-            <h1 class="page-title">Create Bill</h1>
-            <p class="page-sub">Select a dispatched IN number, review its detail, and issue a bilty number.</p>
-          </div>
-          <button class="btn btn-ghost" id="refreshCreateBtn" onclick="loadPendingBills(true)">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2v6h-6M3 22v-6h6M3.51 9a9 9 0 0114.13-3.36L21 8M3 16l3.36 3.36A9 9 0 0020.49 15"/></svg>
-            Refresh list
-          </button>
-        </div>
-
-        <!-- New data banner -->
-        <div class="new-banner" id="newBannerCreate">
-          <div class="new-banner-text">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-              stroke-linejoin="round">
-              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-              <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-            </svg>
-            <span><b id="newBannerCreateCount">New dispatches</b> added since last refresh</span>
-          </div>
-          <button class="new-banner-btn" onclick="applyNewData()">Update now</button>
-        </div>
-
-        <div class="panel">
-          <div class="panel-body">
-
-            <!-- ① IN number select -->
-            <div class="field">
-              <label for="inSelect">Dispatch IN number</label>
-              <select id="inSelect" onchange="onSelectChange()">
-                <option value="">Select an IN number…</option>
-              </select>
-              <p class="field-hint" id="pendingCountHint">Loading pending dispatches…</p>
-            </div>
-
-            <!-- ② Claim warning -->
-            <div class="alert-box alert-claim" id="claimAlert">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                stroke-linejoin="round">
-                <circle cx="12" cy="12" r="10" />
-                <line x1="12" y1="8" x2="12" y2="12" />
-                <line x1="12" y1="16" x2="12.01" y2="16" />
-              </svg>
-              <div class="alert-body">
-                <b>Currently being worked on</b>
-                <span id="claimAlertMsg">Another user has selected this IN number.</span>
-              </div>
-            </div>
-
-            <!-- ③ Manifest -->
-            <div class="manifest" id="manifest">
-
-              <div class="manifest-head">
-                <span class="label">Dispatch Details</span>
-                <span class="inno" id="m_inNo">—</span>
-              </div>
-
-              <div class="manifest-grid" id="manifestGrid">
-              </div>
-
-            </div>
-
-            <!-- ④ Bilty No + check -->
-            <div class="field-row">
-              <div class="field">
-                <label for="billNo">Bilty number</label>
-                <div class="bilty-wrap">
-                  <input class="mono" type="text" id="billNo"
-                  placeholder="e.g. BLT-2026-00451" autocomplete="off"
-                  oninput="onBiltyInput()">
-                  <div class="bilty-status" id="biltyStatus">
-                    <!-- icon injected by JS -->
-                  </div>
-                </div>
-                <!-- ⑤ Bilty duplicate warning -->
-                <div class="alert-box alert-bilty" id="biltyAlert" style="margin-top:10px;margin-bottom:0;">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                    stroke-linejoin="round">
-                    <circle cx="12" cy="12" r="10" />
-                    <line x1="12" y1="8" x2="12" y2="12" />
-                    <line x1="12" y1="16" x2="12.01" y2="16" />
-                  </svg>
-                  <div class="alert-body">
-                    <b>Bilty number already used</b>
-                    <span id="biltyAlertMsg">This bilty number exists in the system.</span>
-                  </div>
-                </div>
-              </div>
-
-              <div class="field">
-                <label for="billBy">Bill prepared by</label>
-                <input type="text" id="billBy" readonly>
-              </div>
-            </div>
-
-            <!-- ⑥ Mismatch summary (shown above button when mismatches exist) -->
-            <div class="alert-box alert-mismatch" id="mismatchAlert">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                stroke-linejoin="round">
-                <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
-                <line x1="12" y1="9" x2="12" y2="13" />
-                <line x1="12" y1="17" x2="12.01" y2="17" />
-              </svg>
-              <div class="alert-body">
-                <b id="mismatchAlertTitle">Data mismatches detected</b>
-                <span id="mismatchAlertMsg">Review the highlighted fields above before submitting.</span>
-              </div>
-            </div>
-
-            <button class="btn btn-amber full" id="submitBtn" onclick="submitBill()">
-            <svg id="submitIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
-            <span id="submitLabel">Create Bill</span>
-          </button>
-
-          </div>
-        </div>
-      </section>
-
-      <!-- ─── PENDING BILLS ──────────────────────────────────── -->
-      <section class="view" id="view-pending">
-
-        <div class="topbar">
-          <div>
-            <p class="eyebrow">Page // 02</p>
-            <h1 class="page-title">Pending Bills</h1>
-            <p class="page-sub">Dispatches that have exited the yard but have no bill issued yet.</p>
-          </div>
-          <button class="btn btn-ghost" id="refreshPendingBtn" onclick="refreshPendingList()">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2v6h-6M3 22v-6h6M3.51 9a9 9 0 0114.13-3.36L21 8M3 16l3.36 3.36A9 9 0 0020.49 15"/></svg>
-            <span id="refreshPendingLabel">Refresh</span>
-          </button>
-        </div>
-
-        <div id="pendingContainer" class="ticket-grid">
-          <div style="grid-column: 1 / -1;">
-            <div class="new-banner" id="newBannerPending">
-              <div class="new-banner-text">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                  stroke-linejoin="round">
-                  <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-                  <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-                </svg>
-                <span><b id="newBannerPendingCount">New dispatches</b> added since last refresh</span>
-              </div>
-              <button class="new-banner-btn" onclick="applyNewData()">Update now</button>
-            </div>
-          </div>
-          <div class="skeleton skel-ticket"></div>
-          <div class="skeleton skel-ticket"></div>
-          <div class="skeleton skel-ticket"></div>
-          <div class="skeleton skel-ticket"></div>
-        </div>
-
-      </section>
-
-
-      <!-- ─── SUBMITTED BILLS ────────────────────────────────── -->
-      <section class="view" id="view-history">
-
-        <div class="topbar">
-          <div>
-            <p class="eyebrow">Page // 03</p>
-            <h1 class="page-title">Submitted Bills</h1>
-            <p class="page-sub">The most recent 100 bills issued across the team.</p>
-          </div>
-          <button class="btn btn-ghost" id="refreshHistoryBtn" onclick="loadRecentBills(true)">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2v6h-6M3 22v-6h6M3.51 9a9 9 0 0114.13-3.36L21 8M3 16l3.36 3.36A9 9 0 0020.49 15"/></svg>
-            <span id="refreshHistoryLabel">Refresh</span>
-          </button>
-        </div>
-
-        <div class="panel">
-          <div class="panel-head">
-            <h2>Recent activity</h2>
-            <span class="field-hint" id="historyCountHint" style="margin:0;">Loading…</span>
-          </div>
-          <div class="table-wrap" id="historyTableWrap">
-            <div style="padding:22px;">
-              <div class="skeleton" style="height:18px; width:100%; margin-bottom:12px;"></div>
-              <div class="skeleton" style="height:18px; width:100%; margin-bottom:12px;"></div>
-              <div class="skeleton" style="height:18px; width:100%;"></div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-
-      <!-- ─── DELIVERY CHALLAN ──────────────────────────────── -->
-      <section class="view" id="view-challan">
-
-        <div class="topbar">
-          <div>
-            <p class="eyebrow">Page // 04</p>
-            <h1 class="page-title">Delivery Challan</h1>
-            <p class="page-sub">Select a billed IN number to preview and print the delivery challan.</p>
-          </div>
-        </div>
-
-        <div class="challan-layout">
-
-          <!-- Left: controls -->
-          <div class="panel">
-            <div class="panel-head">
-              <h2>Challan details</h2>
-              <button class="btn btn-ghost" onclick="loadBilledList(true)">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2v6h-6M3 22v-6h6M3.51 9a9 9 0 0114.13-3.36L21 8M3 16l3.36 3.36A9 9 0 0020.49 15"/></svg>
-              Refresh
-            </button>
-            </div>
-            <div class="panel-body">
-
-              <div class="field">
-                <label for="challanSelect">Select billed IN number</label>
-                <select id="challanSelect" onchange="loadChallan()">
-                <option value="">Loading billed IN numbers…</option>
-              </select>
-                <p class="field-hint" id="challanSelectHint">Bills are loaded from submitted records.</p>
-              </div>
-
-              <!-- Challan data summary card -->
-              <div id="challanSummary" style="display:none; animation: fadeIn 0.3s ease;">
-                <div
-                  style="background:var(--steel-light); border:1px solid var(--line); border-radius:var(--radius-sm); padding:14px 16px; margin-bottom:18px;">
-                  <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px 20px;">
-                    <div>
-                      <div
-                        style="font-size:11px;font-weight:600;color:var(--ink-muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:3px;">
-                        Challan No.</div>
-                      <div style="font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:700;"
-                        id="cs_billNo">—</div>
-                    </div>
-                    <div>
-                      <div
-                        style="font-size:11px;font-weight:600;color:var(--ink-muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:3px;">
-                        Date</div>
-                      <div style="font-family:'JetBrains Mono',monospace;font-size:14px;" id="cs_billDate">—</div>
-                    </div>
-                    <div>
-                      <div
-                        style="font-size:11px;font-weight:600;color:var(--ink-muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:3px;">
-                        Party</div>
-                      <div style="font-size:13.5px;font-weight:600;" id="cs_party">—</div>
-                    </div>
-                    <div>
-                      <div
-                        style="font-size:11px;font-weight:600;color:var(--ink-muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:3px;">
-                        Truck</div>
-                      <div style="font-family:'JetBrains Mono',monospace;font-size:13.5px;" id="cs_truck">—</div>
-                    </div>
-                    <div>
-                      <div
-                        style="font-size:11px;font-weight:600;color:var(--ink-muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:3px;">
-                        From → To</div>
-                      <div style="font-size:13px;" id="cs_route">—</div>
-                    </div>
-                    <div>
-                      <div
-                        style="font-size:11px;font-weight:600;color:var(--ink-muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:3px;">
-                        Net Weight</div>
-                      <div style="font-family:'JetBrains Mono',monospace;font-size:13.5px;" id="cs_weight">—</div>
-                    </div>
-                  </div>
-                </div>
-
-                <div class="print-actions">
-                  <button class="btn btn-amber full" onclick="printChallan()">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
-                  Print / Save as PDF
-                </button>
-                </div>
-              </div>
-
-              <div id="challanLoadingState"
-                style="display:none; text-align:center; padding:30px; color:var(--ink-muted);">
-                <div class="spinner-ring"
-                  style="width:28px;height:28px;border:3px solid var(--line-strong);border-top-color:var(--steel);border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 12px;">
-                </div>
-                Loading challan data…
-              </div>
-
-            </div>
-          </div>
-
-          <!-- Right: live preview -->
-          <div class="challan-preview-wrap">
-
-            <div class="preview-label">A4 Preview — Original &amp; Duplicate</div>
-
-            <div class="challan-empty" id="challanEmptyState">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"
-                stroke-linejoin="round">
-                <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
-                <polyline points="14 2 14 8 20 8" />
-                <line x1="16" y1="13" x2="8" y2="13" />
-                <line x1="16" y1="17" x2="8" y2="17" />
-                <polyline points="10 9 9 9 8 9" />
-              </svg>
-              <p>Select a billed IN number to preview the challan</p>
-            </div>
-
-            <!-- Both copies rendered here (paper simulation) -->
-            <div class="challan-paper" id="challanPreview">
-              <!-- injected by renderChallanPreview() -->
-            </div>
-
-          </div>
-
-        </div>
-      </section>
-
-      <!-- ─── WEIGHMENT SLIP ─────────────────────────────────── -->
-      <section class="view" id="view-weighment">
-
-        <div class="topbar">
-          <div>
-            <p class="eyebrow">Page // 05</p>
-            <h1 class="page-title">Weighment Slip</h1>
-            <p class="page-sub">Select an IN number to generate the weighment slip.</p>
-          </div>
-        </div>
-
-        <div class="challan-layout">
-
-          <!-- Left: controls -->
-          <div class="panel">
-            <div class="panel-head">
-              <h2>Weighment details</h2>
-              <button class="btn btn-ghost" onclick="loadWeighmentDropdown(true)">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2v6h-6M3 22v-6h6M3.51 9a9 9 0 0114.13-3.36L21 8M3 16l3.36 3.36A9 9 0 0020.49 15"/></svg>
-                <span id="wsRefreshLabel">Refresh</span>
-              </button>
-            </div>
-            <div class="panel-body">
-              <div class="field">
-                <label for="wsSelect">Select IN number</label>
-                <select id="wsSelect" onchange="loadWeighmentSlip()">
-                  <option value="">Loading IN numbers…</option>
-                </select>
-                <p class="field-hint" id="wsSelectHint">Click Refresh to load dispatch IN numbers.</p>
-              </div>
-
-              <!-- Challan data summary card -->
-              <div id="weightmentSummary" style="display:none; animation: fadeIn 0.3s ease;">
-                <div
-                  style="background:var(--steel-light); border:1px solid var(--line); border-radius:var(--radius-sm); padding:14px 16px; margin-bottom:18px;">
-                  <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px 20px;">
-                    <div>
-                      <div
-                        style="font-size:11px;font-weight:600;color:var(--ink-muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:3px;">
-                        In No.</div>
-                      <div style="font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:700;"
-                        id="ws_billNo">—</div>
-                    </div>
-                    <div>
-                      <div
-                        style="font-size:11px;font-weight:600;color:var(--ink-muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:3px;">
-                        Date</div>
-                      <div style="font-family:'JetBrains Mono',monospace;font-size:14px;" id="ws_billDate">—</div>
-                    </div>
-                    <div>
-                      <div
-                        style="font-size:11px;font-weight:600;color:var(--ink-muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:3px;">
-                        State</div>
-                      <div style="font-size:13.5px;font-weight:600;" id="ws_state">—</div>
-                    </div>
-                    <div>
-                      <div
-                        style="font-size:11px;font-weight:600;color:var(--ink-muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:3px;">
-                        State</div>
-                      <div style="font-family:'JetBrains Mono',monospace;font-size:13.5px;" id="ws_truck">—</div>
-                    </div>
-                    <div>
-                      <div
-                        style="font-size:11px;font-weight:600;color:var(--ink-muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:3px;">
-                        Port</div>
-                      <div>
-                        <select
-                          id="ws_port"
-                          class="ws-edit-field"
-                          list="wsPortList"
-                          placeholder="Select Port">
-                          </select>
-
-                        <datalist id="wsPortList"></datalist>
-                      </div>
-                    </div>
-                    <div>
-                      <div
-                        style="font-size:11px;font-weight:600;color:var(--ink-muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:3px;">
-                        Net Weight</div>
-                      <div style="font-family:'JetBrains Mono',monospace;font-size:13.5px;" id="ws_weight">—</div>
-                    </div>
-                  </div>
-                </div>
-                <div class="print-actions">
-                  <button class="btn btn-amber full" onclick="printWeighmentSlip()" id="wsPrintBtn" disabled>
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
-                    Print Slip
-                  </button>
-                </div>
-              </div>
-
-              <div id="WeighmentLoadingState"
-                style="display:none; text-align:center; padding:30px; color:var(--ink-muted);">
-                <div class="spinner-ring"
-                  style="width:28px;height:28px;border:3px solid var(--line-strong);border-top-color:var(--steel);border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 12px;">
-                </div>
-                Loading WeightMent data…
-              </div>
-            </div>
-          </div>
-
-          <div class="challan-preview-wrap">
-            <div class="preview-label">Weighment Slip Preview</div>
-            <div class="ws-paper" id="wsPreview"></div>
-          </div>
-
-        </div>
-      </section>
-
-    </main>
-  </div>
-
-  <script>
-    let pendingBills = [];
-    let portMaster = [];
-    let selectedIN = "";
-    let selectedDetails = null;
-    let currentUser = {};
-    let historyLoaded = false;
-    let biltyCheckTimer = null;
-    let biltyDuplicate  = false;   // blocks submit if true
-
-    // ── Polling state ──────────────────────────────────────────
-    const POLL_MS = 120 * 1000;  // 120 seconds
-    let pollTimer = null;
-    let progressTimer = null;
-    let agoTimer = null;
-    let lastSyncTime = null;        // Date of last successful sync
-    let lastPendingCount = null;    // count at last sync applied to UI
-    let stagedData = null;          // new data fetched silently, not yet applied
-    let pollStartTime = null;       // when current countdown started
-
-    //========================================================
-    // INIT
-    //========================================================
-    window.onload = function () {
-      initThemeSystem();
-      loadCurrentUser();
-      loadPendingBills();       // initial full load
-      startAgoTicker();         // "X seconds ago" live label
-    };
-
-    // Release claim if user closes / navigates away
-  window.addEventListener("beforeunload", function () {
-    if (selectedIN) {
-      // Use sendBeacon-style call — fire and forget
-      google.script.run.releaseClaim(selectedIN);
-    }
-  });
-
-    //========================================================
-    // THEME SYSTEM
-    //========================================================
-    function initThemeSystem() {
-      const savedTheme = localStorage.getItem('theme') || 'light';
-      updateThemeIcons(savedTheme);
-    }
-
-    function toggleTheme() {
-      const currentTheme = document.documentElement.getAttribute('data-theme') || 'light';
-      const newTheme = currentTheme === 'light' ? 'dark' : 'light';
-      
-      document.documentElement.setAttribute('data-theme', newTheme);
-      localStorage.setItem('theme', newTheme);
-      updateThemeIcons(newTheme);
-    }
-
-    function updateThemeIcons(theme) {
-      const desktopIcon = document.getElementById('themeIconDesktop');
-      const mobileIcon = document.getElementById('themeIconMobile');
-      
-      // Moon for light mode (switch to dark), Sun for dark mode (switch to light)
-      const iconPath = theme === 'light' 
-        ? '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>' 
-        : '<circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>';
-      
-      if (desktopIcon) desktopIcon.innerHTML = iconPath;
-      if (mobileIcon) mobileIcon.innerHTML = iconPath;
-    }
-
-    //========================================================
-    // POLLING ENGINE
-    //========================================================
-
-    
-  /* ═══════════════════════════════════════════════════════════
-     VIEW SWITCHING
-  ═══════════════════════════════════════════════════════════ */
-  function switchView(view) {
-    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
-    document.getElementById('view-' + view).classList.add('active');
-    document.querySelectorAll('.nav-item').forEach(n => {
-      n.classList.toggle('active', n.dataset.view === view);
-    });
-    if (view === 'history' && !historyLoaded) loadRecentBills();
-    //if (view === 'weighment' && weighmentINList.length === 0) loadWeighmentDropdown();
-    if (view === 'weighment') loadPortList();
   }
-
-  /* ═══════════════════════════════════════════════════════════
-     USER
-  ═══════════════════════════════════════════════════════════ */
-  function loadCurrentUser() {
-    google.script.run
-      .withSuccessHandler(function (user) {
-        currentUser = user;
-        document.getElementById("billBy").value    = user.name;
-        document.getElementById("userName").innerText  = user.name;
-        document.getElementById("userEmail").innerText = user.email;
-        document.getElementById("userAvatar").innerText = initials(user.name);
-      })
-      .withFailureHandler(function (err) { showToast(err.toString(), "danger"); })
-      .getCurrentUser();
-  }
-
-  function initials(name) {
-    if (!name) return "?";
-    const p = name.trim().split(/\s+/);
-    return p.length === 1 ? p[0].substring(0,2).toUpperCase() : (p[0][0]+p[1][0]).toUpperCase();
-  }
-
-  /* ═══════════════════════════════════════════════════════════
-     POLLING ENGINE
-  ═══════════════════════════════════════════════════════════ */
-  function schedulePoll() {
-    clearTimeout(pollTimer);
-    pollStartTime = Date.now();
-    startProgressBar();
-    pollTimer = setTimeout(silentPoll, POLL_MS);
-  }
-
-  function silentPoll() {
-    setSyncState("syncing", "Syncing…");
-    google.script.run
-      .withSuccessHandler(function (data) {
-        lastSyncTime = new Date();
-        const diff = data.length - (lastPendingCount !== null ? lastPendingCount : data.length);
-        if (diff > 0) {
-          stagedData = data;
-          showNewBanner(diff);
-          setSyncState("ok", "New data ready");
-        } else {
-          stagedData = null;
-          applyDataSilently(data);
-          setSyncState("ok", "Live sync active");
-        }
-        schedulePoll();
-      })
-      .withFailureHandler(function () {
-        setSyncState("error", "Sync failed — retrying");
-        schedulePoll();
-      })
-      .getPendingBills();
-  }
-
-  function applyDataSilently(data) {
-    pendingBills     = data;
-    lastPendingCount = data.length;
-    populateDropdown(data);
-    renderPendingTickets(data);
-    document.getElementById("pendingBadge").innerText = data.length;
-    document.getElementById("pendingCountHint").innerText =
-      data.length + " dispatch" + (data.length === 1 ? "" : "es") + " awaiting a bill";
-  }
-
-  function applyNewData() {
-    if (stagedData) { applyDataSilently(stagedData); stagedData = null; }
-    hideNewBanners();
-    setSyncState("ok", "Live sync active");
-  }
-
-  function setSyncState(state, label) {
-    const dot = document.getElementById("syncDot");
-    dot.className = "sync-dot" + (state === "syncing" ? " syncing" : state === "error" ? " error" : "");
-    document.getElementById("syncStatus").innerText = label;
-  }
-
-  function startAgoTicker() {
-    clearInterval(agoTimer);
-    agoTimer = setInterval(updateAgoLabel, 5000);
-    updateAgoLabel();
-  }
-
-  function updateAgoLabel() {
-    const agoEl   = document.getElementById("syncAgo");
-    const exactEl = document.getElementById("syncTimeExact");
-    if (!lastSyncTime) { agoEl.innerText = "Checking…"; exactEl.innerText = ""; return; }
-    const secs = Math.floor((Date.now() - lastSyncTime) / 1000);
-    agoEl.innerText = "Last synced " + (
-      secs < 10 ? "just now" :
-      secs < 60 ? secs + "s ago" :
-      secs < 3600 ? Math.floor(secs/60) + "m ago" :
-      Math.floor(secs/3600) + "h ago"
-    );
-    const hh = lastSyncTime.getHours().toString().padStart(2,"0");
-    const mm = lastSyncTime.getMinutes().toString().padStart(2,"0");
-    const ss = lastSyncTime.getSeconds().toString().padStart(2,"0");
-    exactEl.innerText = "at " + hh + ":" + mm + ":" + ss;
-  }
-
-  function startProgressBar() {
-    const bar = document.getElementById("syncProgressBar");
-    bar.style.transition = "none"; bar.style.width = "100%";
-    clearInterval(progressTimer);
-    setTimeout(function () {
-      bar.style.transition = "width " + (POLL_MS/1000) + "s linear";
-      bar.style.width = "0%";
-    }, 80);
-  }
-
-  function showNewBanner(diff) {
-    const label = diff + " new dispatch" + (diff===1?"":"es");
-    document.getElementById("newBannerCreateCount").innerText = label;
-    document.getElementById("newBannerPendingCount").innerText = label;
-    document.getElementById("newBannerCreate").classList.add("show");
-    document.getElementById("newBannerPending").classList.add("show");
-  }
-
-  function hideNewBanners() {
-    document.getElementById("newBannerCreate").classList.remove("show");
-    document.getElementById("newBannerPending").classList.remove("show");
-  }
-
-  /* ═══════════════════════════════════════════════════════════
-     LOAD PENDING (initial + manual refresh)
-  ═══════════════════════════════════════════════════════════ */
-  function loadPendingBills(isManualRefresh) {
-    const hint       = document.getElementById("pendingCountHint");
-    const refreshBtn = document.getElementById("refreshCreateBtn");
-    if (isManualRefresh) {
-      setBtnLoading(refreshBtn, true, "Refreshing…");
-      setSyncState("syncing", "Syncing…");
-      hideNewBanners(); stagedData = null;
-    } else {
-      setSyncState("syncing", "Loading…");
-    }
-    hint.innerText = "Loading pending dispatches…";
-
-    google.script.run
-      .withSuccessHandler(function (data) {
-        pendingBills     = data;
-        lastPendingCount = data.length;
-        lastSyncTime     = new Date();
-        populateDropdown(data);
-        renderPendingTickets(data);
-        document.getElementById("pendingBadge").innerText = data.length;
-        hint.innerText = data.length + " dispatch" + (data.length===1?"":"es") + " awaiting a bill";
-        setSyncState("ok", "Live sync active");
-        updateAgoLabel();
-        if (isManualRefresh) {
-          setBtnLoading(refreshBtn, false, "Refresh list");
-          showToast("Pending list refreshed", "success");
-        }
-        schedulePoll();
-      })
-      .withFailureHandler(function (err) {
-        hint.innerText = "Could not load pending dispatches.";
-        setSyncState("error", "Sync failed");
-        if (isManualRefresh) setBtnLoading(refreshBtn, false, "Refresh list");
-        showToast(err.toString(), "danger");
-        schedulePoll();
-      })
-      .getPendingBills();
-  }
-
-  function populateDropdown(data) {
-    let html = "<option value=''>Select an IN number…</option>";
-    data.forEach(row => {
-      html += `<option value="${escapeHtml(row.inNo)}">${escapeHtml(row.inNo)} — ${escapeHtml(row.party||'')}</option>`;
-    });
-    const select   = document.getElementById("inSelect");
-    const prevValue = select.value;
-    select.innerHTML = html;
-    if (prevValue && data.some(r => r.inNo === prevValue)) select.value = prevValue;
-  }
-
-  /* ═══════════════════════════════════════════════════════════
-     PENDING TICKETS
-  ═══════════════════════════════════════════════════════════ */
-  function renderPendingTickets(data) {
-    const container = document.getElementById("pendingContainer");
-
-    // Keep the banner wrapper
-    const bannerWrap = `
-      <div style="grid-column:1/-1;">
-        <div class="new-banner ${document.getElementById('newBannerPending').classList.contains('show') ? 'show' : ''}" id="newBannerPending">
-          <div class="new-banner-text">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
-            <span><b id="newBannerPendingCount">${escapeHtml(document.getElementById('newBannerPendingCount')?.innerText||'')}</b> added since last refresh</span>
-          </div>
-          <button class="new-banner-btn" onclick="applyNewData()">Update now</button>
-        </div>
-      </div>`;
-
-    if (!data.length) {
-      container.className = "";
-      container.innerHTML = bannerWrap + `
-        <div class="empty-state">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12l2 2 4-4M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-          <h3>All caught up</h3>
-          <p>There are no pending bills right now.</p>
-        </div>`;
-      return;
-    }
-
-    container.className = "ticket-grid";
-    let html = bannerWrap;
-
-    data.forEach(row => {
-      const isClaimed = !!row.claimedBy;
-      html += `
-        <div class="ticket ${isClaimed ? 'claimed' : ''}"
-          onclick="${isClaimed ? 'showClaimedToast(${JSON.stringify(row.claimedBy)})' : 'selectFromTicket(${JSON.stringify(row.inNo)})'}">
-          <span class="stamp ${isClaimed ? 'claimed' : 'pending'}">${isClaimed ? 'In progress' : 'Pending'}</span>
-          <div class="ticket-top">
-            <span class="ticket-stub">IN&nbsp;NO</span>
-            <div class="ticket-main">
-              <div class="ticket-inno">${escapeHtml(row.inNo)}</div>
-            </div>
-          </div>
-          <div class="ticket-meta">
-            <div class="ticket-meta-row"><span>Party</span><b>${escapeHtml(row.party||'—')}</b></div>
-            <div class="ticket-meta-row"><span>Truck</span><b>${escapeHtml(row.truck||'—')}</b></div>
-            <div class="ticket-meta-row"><span>Out time</span><b>${escapeHtml(row.outTime||'—')}</b></div>
-          </div>
-          ${isClaimed ? `
-          <div class="ticket-claim-bar">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
-            Being worked on by <b style="margin-left:4px;">${escapeHtml(row.claimedBy)}</b>
-          </div>` : ''}
-        </div>`;
-    });
-
-    container.innerHTML = html;
-  }
-
-  function showClaimedToast(name) {
-    showToast(
-      "⚠️ This IN number is already being processed by " +
-      name +
-      ". Please coordinate before creating a bill.",
-      "warning"
+  if (!isAuthorizedUser()) {
+    return HtmlService.createHtmlOutput(
+      "<h2>Access Denied</h2><p>You are not authorized to use this application.</p>"
     );
   }
 
-  function selectFromTicket(inNo) {
-    switchView('create');
-    document.getElementById("inSelect").value = inNo;
-    onSelectChange();
-    setTimeout(() => {
-      document.getElementById("manifest").scrollIntoView({ behavior:"smooth", block:"center" });
-    }, 150);
-  }
-
-  function refreshPendingList() {
-    const btn = document.getElementById("refreshPendingBtn");
-    setBtnLoading(btn, true, "Refreshing…", "refreshPendingLabel");
-    setSyncState("syncing", "Syncing…");
-    hideNewBanners(); stagedData = null;
-
-    google.script.run
-      .withSuccessHandler(function (data) {
-        pendingBills = data; lastPendingCount = data.length; lastSyncTime = new Date();
-        populateDropdown(data); renderPendingTickets(data);
-        document.getElementById("pendingBadge").innerText = data.length;
-        document.getElementById("pendingCountHint").innerText =
-          data.length + " dispatch" + (data.length===1?"":"es") + " awaiting a bill";
-        setSyncState("ok", "Live sync active"); updateAgoLabel(); schedulePoll();
-        setBtnLoading(btn, false, "Refresh", "refreshPendingLabel");
-        showToast("Pending list refreshed (" + data.length + " items)", "success");
-      })
-      .withFailureHandler(function (err) {
-        setSyncState("error", "Sync failed");
-        setBtnLoading(btn, false, "Refresh", "refreshPendingLabel");
-        showToast(err.toString(), "danger");
-      })
-      .refreshPendingBills();
-  }
-
-  /* ═══════════════════════════════════════════════════════════
-     SELECT IN → CLAIM → MANIFEST
-  ═══════════════════════════════════════════════════════════ */
-  function onSelectChange() {
-    const newIN = document.getElementById("inSelect").value;
-
-    // Release previous claim
-    if (selectedIN && selectedIN !== newIN) {
-      google.script.run.releaseClaim(selectedIN);
-    }
-
-    selectedIN      = newIN;
-    selectedDetails = null;
-    hideMismatchAlert();
-    document.getElementById("claimAlert").classList.remove("show");
-
-    const manifest = document.getElementById("manifest");
-
-    if (!selectedIN) {
-      manifest.classList.remove("show");
-      return;
-    }
-
-    // Show manifest skeleton immediately
-    manifest.classList.add("show");
-    document.getElementById("m_inNo").innerText = selectedIN;
-    document.getElementById("manifestGrid").innerHTML = `
-      <div class="skeleton" style="height:40px;"></div>
-      <div class="skeleton" style="height:40px;"></div>
-      <div class="skeleton" style="height:40px;"></div>
-      <div class="skeleton" style="height:40px;"></div>`;
-
-    // ① Claim the IN
-    google.script.run
-      .withSuccessHandler(function (res) {
-        if (res.claimed) {
-          // Someone else has it — show warning but still let them view manifest
-          document.getElementById("claimAlert").classList.add("show");
-          document.getElementById("claimAlertMsg").innerText =
-            res.by + " selected this IN number " + res.since + ". " +
-            "If you submit, one of you will be blocked.";
-        }
-        // claimed:false → we own it, no message needed
-      })
-      .withFailureHandler(function () { /* fail silently */ })
-      .claimIN(selectedIN);
-
-    // ② Load manifest details
-    google.script.run
-      .withSuccessHandler(function (row) {
-        if (!row) {
-          showToast("Could not find manifest details.", "danger");
-          document.getElementById("manifestGrid").innerHTML =
-            `<div class="m-item"><span class="m-value">No data found for this IN number.</span></div>`;
-          return;
-        }
-        selectedDetails = row;
-        renderManifest(row);
-        updateMismatchAlert(row);
-      })
-      .withFailureHandler(function (err) { showToast(err.toString(), "danger"); })
-      .getBillDetails(selectedIN);
-  }
-
-  /* ═══════════════════════════════════════════════════════════
-     MANIFEST RENDER
-  ═══════════════════════════════════════════════════════════ */
-  function renderManifest(row) {
-    const mm = (a,b) => String(a||"").trim() !== String(b||"").trim();
-    document.getElementById("manifestGrid").innerHTML = `
-      <div class="m-item"><span class="m-label">In time</span><span class="m-value mono">${escapeHtml(row.inTime||'—')}</span></div>
-      <div class="m-item"><span class="m-label">Out time</span><span class="m-value mono">${escapeHtml(row.outTime||'—')}</span></div>
-
-      <div class="m-item"><span class="m-label">Party</span><span class="m-value">${escapeHtml(row.party||'—')}</span></div>
-      <div class="m-item"><span class="m-label">Bill-to party</span><span class="m-value">${flagVal(row.salesOrderPartyName, mm(row.party,row.salesOrderPartyName))}</span></div>
-
-      <div class="m-item"><span class="m-label">From</span><span class="m-value">${escapeHtml(row.from||'—')}</span></div>
-      <div class="m-item"><span class="m-label">Bill port</span><span class="m-value">${flagVal(row.billPort, mm(row.from,row.billPort))}</span></div>
-
-      <div class="m-item"><span class="m-label">Destination</span><span class="m-value">${escapeHtml(row.destination||'—')}</span></div>
-      <div class="m-item"><span class="m-label">Bill destination</span><span class="m-value">${flagVal(row.salesOrderDestination, mm(row.destination,row.salesOrderDestination))}</span></div>
-
-      <div class="m-divider"></div>
-
-      <div class="m-item"><span class="m-label">Truck</span><span class="m-value mono">${escapeHtml(row.truck||'—')}</span></div>
-      <div class="m-item"><span class="m-label">Transporter</span><span class="m-value">${escapeHtml(row.transporter||'—')}</span></div>
-      <div class="m-item"><span class="m-label">Transport purchase rate</span><span class="m-value mono">${escapeHtml(row.trasnportPurchaseRate??'—')}</span></div>
-      <div class="m-item"><span class="m-label">Trader</span><span class="m-value">${escapeHtml(row.trader||'—')}</span></div>
-      <div class="m-item"><span class="m-label">Gross weight</span><span class="m-value mono">${escapeHtml(row.grossWeight||'—')}</span></div>
-      <div class="m-item"><span class="m-label">Tare weight</span><span class="m-value mono">${escapeHtml(row.tareWeight||'—')}</span></div>
-      <div class="m-item"><span class="m-label">Net weight</span><span class="m-value mono">${escapeHtml(row.netWeight||'—')}</span></div>
-      <div class="m-item"><span class="m-label">SO type</span><span class="m-value">${escapeHtml(row.soType||'—')}</span></div>
-
-      <div class="m-divider"></div>
-
-      <div class="m-item"><span class="m-label">Tally vessel Name</span><span class="m-value">${escapeHtml(row.tallyVesselName||'—')}</span></div>
-      <div class="m-item"><span class="m-label">Handling rate</span><span class="m-value mono">${escapeHtml(row.handlingRate??'0')}</span></div>
-      <div class="m-item"><span class="m-label">SO number</span><span class="m-value mono">${escapeHtml(row.soNo||'—')}</span></div>
-      <div class="m-item"><span class="m-label">DO number</span><span class="m-value mono">${escapeHtml(row.doNo||'—')}</span></div>
-      <div class="m-item"><span class="m-label">Seal No</span><span class="m-value mono">${escapeHtml(row.sealNo||'—')}</span></div>
-      <div class="m-item"><span class="m-label">Item (P)</span><span class="m-value mono">${escapeHtml(row.vesselName||'—')}</span></div>
-    `;
-  }
-
-  function flagVal(value, isMismatch) {
-    const v = escapeHtml(value||'—');
-    return isMismatch ? `<span class="m-flag bad">${v}</span>` : v;
-  }
-
-  /* ═══════════════════════════════════════════════════════════
-     MISMATCH ALERT (below manifest, above submit)
-  ═══════════════════════════════════════════════════════════ */
-  function getMismatches(row) {
-    if (!row) return [];
-    const checks = [
-      { field:"Party vs Bill-to",       a:row.party,       b:row.salesOrderPartyName },
-      { field:"From vs Bill port",       a:row.from,        b:row.billPort },
-      { field:"Destination vs Bill dest",a:row.destination, b:row.salesOrderDestination },
-    ];
-    return checks.filter(c => String(c.a||"").trim() !== String(c.b||"").trim());
-  }
-
-  function updateMismatchAlert(row) {
-    const mm = getMismatches(row);
-    const alert = document.getElementById("mismatchAlert");
-    if (!mm.length) { alert.classList.remove("show"); return; }
-    alert.classList.add("show");
-    document.getElementById("mismatchAlertTitle").innerText =
-      mm.length + " data mismatch" + (mm.length===1?"":"es") + " detected";
-    document.getElementById("mismatchAlertMsg").innerText =
-      "You will be asked to confirm before the bill is created.";
-  }
-
-  function hideMismatchAlert() {
-    document.getElementById("mismatchAlert").classList.remove("show");
-  }
-
-  /* ═══════════════════════════════════════════════════════════
-     LIVE BILTY CHECK (debounced)
-  ═══════════════════════════════════════════════════════════ */
-  function onBiltyInput() {
-    const val = document.getElementById("billNo").value.trim();
-    biltyDuplicate = false;
-
-    const statusEl = document.getElementById("biltyStatus");
-    const alertEl  = document.getElementById("biltyAlert");
-
-    statusEl.className = "bilty-status";
-    alertEl.classList.remove("show");
-
-    if (!val || val.length < 3) return;
-
-    // Show spinner
-    statusEl.className = "bilty-status show";
-    statusEl.innerHTML = `<svg class="spin" viewBox="0 0 24 24" fill="none" stroke="var(--ink-muted)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9" stroke-dasharray="42" stroke-dashoffset="14"/></svg>`;
-
-    clearTimeout(biltyCheckTimer);
-    biltyCheckTimer = setTimeout(function () {
-      google.script.run
-        .withSuccessHandler(function (res) {
-          if (document.getElementById("billNo").value.trim() !== val) return; // stale
-          if (res.exists) {
-            biltyDuplicate = true;
-            statusEl.className = "bilty-status show";
-            statusEl.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="var(--rust)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>`;
-            alertEl.classList.add("show");
-            document.getElementById("biltyAlertMsg").innerText =
-              'Already used for IN number "' + res.inNo + '". Choose a different bilty number.';
-          } else {
-            biltyDuplicate = false;
-            statusEl.className = "bilty-status show";
-            statusEl.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="var(--forest)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9 12l2 2 4-4"/></svg>`;
-          }
-        })
-        .withFailureHandler(function () {
-          statusEl.className = "bilty-status"; // hide on error
-        })
-        .checkBiltyExists(val);
-    }, 600); // 600 ms debounce
-  }
-
-  /* ═══════════════════════════════════════════════════════════
-     SUBMIT BILL (with mismatch dialog gate)
-  ═══════════════════════════════════════════════════════════ */
-  function submitBill() {
-    const billNo = document.getElementById("billNo").value.trim();
-    const billBy = document.getElementById("billBy").value.trim();
-
-    if (!selectedIN) { showToast("Select a dispatch IN number first.", "danger"); return; }
-    if (!billNo)     { showToast("Enter a bilty number.", "danger"); return; }
-    if (!billBy)     { showToast("Bill-by name missing — try reloading.", "danger"); return; }
-
-    if (biltyDuplicate) {
-      showToast("This bilty number is already in use. Please use a different one.", "danger");
-      return;
-    }
-
-    // Check for mismatches — open dialog if any
-    if (selectedDetails) {
-      const mm = getMismatches(selectedDetails);
-      if (mm.length > 0) {
-        openMismatchDialog(mm);
-        return;
-      }
-    }
-
-    // Pre-submit: quick server check that IN is still unbilled
-    doPreSubmitCheck(billNo, billBy);
-  }
-
-  function doPreSubmitCheck(billNo, billBy) {
-    const btn = document.getElementById("submitBtn");
-    setBtnLoading(btn, true, "Verifying…", "submitLabel", "submitIcon");
-
-    // Quick check: is this IN still unbilled right now?
-    google.script.run
-      .withSuccessHandler(function (data) {
-        // data = current pending list
-        const stillPending = data.some(r => r.inNo === selectedIN);
-        if (!stillPending) {
-          setBtnLoading(btn, false, "Create Bill", "submitLabel", "submitIcon", true);
-          showToast("This IN number was just billed by a teammate. Please refresh and select another.", "danger");
-          loadPendingBills();
-          return;
-        }
-        // Safe to proceed
-        doCreateBill(billNo, billBy);
-      })
-      .withFailureHandler(function () {
-        // If check fails, proceed anyway — server lock will catch duplicate
-        doCreateBill(billNo, billBy);
-      })
-      .getPendingBills();
-  }
-
-  function doCreateBill(billNo, billBy) {
-    const btn = document.getElementById("submitBtn");
-    setBtnLoading(btn, true, "Creating…", "submitLabel", "submitIcon");
-
-    google.script.run
-      .withSuccessHandler(function (res) {
-        setBtnLoading(btn, false, "Create Bill", "submitLabel", "submitIcon", true);
-        if (res.success) {
-          showToast(res.message, "success");
-          // Reset
-          selectedIN = ""; selectedDetails = null;
-          document.getElementById("billNo").value   = "";
-          document.getElementById("inSelect").value = "";
-          document.getElementById("manifest").classList.remove("show");
-          document.getElementById("claimAlert").classList.remove("show");
-          document.getElementById("biltyAlert").classList.remove("show");
-          document.getElementById("biltyStatus").className = "bilty-status";
-          hideMismatchAlert();
-          biltyDuplicate = false;
-          // Reload
-          loadPendingBills(); hideNewBanners(); stagedData = null; historyLoaded = false;
-        } else {
-          // Rich error from server
-          showToast(res.message, "danger");
-        }
-      })
-      .withFailureHandler(function (err) {
-        setBtnLoading(btn, false, "Create Bill", "submitLabel", "submitIcon", true);
-        showToast(err.toString(), "danger");
-      })
-      .createBill(selectedIN, billNo, billBy);
-  }
-
-  /* ── Mismatch dialog ─────────────────────────────────────── */
-  function openMismatchDialog(mismatches) {
-    let li = "";
-    mismatches.forEach(m => {
-      li += `
-        <li>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
-          <div class="m-pair">
-            <span class="m-field">${escapeHtml(m.field)}</span>
-            <span class="m-vals">
-              <span>${escapeHtml(m.a||'—')}</span>
-              <span class="arr">→</span>
-              <span>${escapeHtml(m.b||'—')}</span>
-            </span>
-          </div>
-        </li>`;
-    });
-    document.getElementById("mismatchList").innerHTML = li;
-    document.getElementById("mismatchDialog").classList.add("show");
-  }
-
-  function closeDialog() {
-    document.getElementById("mismatchDialog").classList.remove("show");
-  }
-
-  function confirmSubmit() {
-    closeDialog();
-    const billNo = document.getElementById("billNo").value.trim();
-    const billBy = document.getElementById("billBy").value.trim();
-    doPreSubmitCheck(billNo, billBy);
-  }
-
-  /* ═══════════════════════════════════════════════════════════
-     HISTORY
-  ═══════════════════════════════════════════════════════════ */
-  function loadRecentBills(isManualRefresh) {
-    const hint = document.getElementById("historyCountHint");
-    const btn  = document.getElementById("refreshHistoryBtn");
-    if (isManualRefresh) setBtnLoading(btn, true, "Refreshing…", "refreshHistoryLabel");
-    hint.innerText = "Loading…";
-
-    google.script.run
-      .withSuccessHandler(function (data) {
-        historyLoaded = true;
-        renderHistoryTable(data);
-        hint.innerText = "Showing " + data.length + " of last 100";
-        if (isManualRefresh) {
-          setBtnLoading(btn, false, "Refresh", "refreshHistoryLabel");
-          showToast("Submitted bills refreshed", "success");
-        }
-      })
-      .withFailureHandler(function (err) {
-        hint.innerText = "Failed to load.";
-        if (isManualRefresh) setBtnLoading(btn, false, "Refresh", "refreshHistoryLabel");
-        showToast(err.toString(), "danger");
-      })
-      .getRecentBills();
-  }
-
-  function renderHistoryTable(data) {
-    const wrap = document.getElementById("historyTableWrap");
-    if (!data.length) {
-      wrap.innerHTML = `
-        <div class="empty-state">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7h18M3 12h18M3 17h12"/></svg>
-          <h3>No bills submitted yet</h3>
-          <p>Bills you create will show up here.</p>
-        </div>`;
-      return;
-    }
-    let rows = "";
-    data.forEach(b => {
-      rows += `
-        <tr>
-          <td class="mono">${escapeHtml(b.date)}</td>
-          <td class="mono">${escapeHtml(b.inNo)}</td>
-          <td class="mono">${escapeHtml(b.billNo)}</td>
-          <td>
-            <div class="by-cell">
-              <div class="by-avatar">${escapeHtml(initials(b.billBy))}</div>
-              ${escapeHtml(b.billBy)}
-            </div>
-          </td>
-          <td><span class="pill">Billed</span></td>
-        </tr>`;
-    });
-    wrap.innerHTML = `
-      <table>
-        <thead>
-          <tr>
-            <th>Date &amp; time</th>
-            <th>IN number</th>
-            <th>Bilty number</th>
-            <th>Created by</th>
-            <th>Status</th>
-          </tr>
-        </thead>
-        <tbody>${rows}</tbody>
-      </table>`;
-  }
-
-  /* ═══════════════════════════════════════════════════════════
-     HELPERS
-  ═══════════════════════════════════════════════════════════ */
-  function setBtnLoading(btn, loading, label, labelId, iconId, restoreCheck) {
-    btn.disabled = loading;
-    const labelEl = labelId ? document.getElementById(labelId) : null;
-    if (labelEl) labelEl.innerText = label;
-    const icon = iconId ? document.getElementById(iconId) : btn.querySelector('svg');
-    if (icon) {
-      icon.classList.toggle('spin', loading);
-      if (loading) {
-        icon.innerHTML = '<circle cx="12" cy="12" r="9" stroke-dasharray="42" stroke-dashoffset="14"/>';
-      } else if (restoreCheck) {
-        icon.innerHTML = '<path d="M20 6L9 17l-5-5"/>';
-      } else {
-        icon.innerHTML = '<path d="M21 2v6h-6M3 22v-6h6M3.51 9a9 9 0 0114.13-3.36L21 8M3 16l3.36 3.36A9 9 0 0020.49 15"/>';
-      }
-    }
-  }
-
-  function escapeHtml(str) {
-    if (str === null || str === undefined) return "";
-    return String(str)
-      .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
-      .replace(/"/g,"&quot;").replace(/'/g,"&#039;");
-  }
-
-  function showToast(message, type) {
-    const icons = {
-      success: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>',
-      danger:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v4M12 16h.01"/></svg>',
-      warning: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>'
-    };
-    const toast = document.createElement("div");
-    toast.className = "toast " + (type||"");
-    toast.innerHTML = (icons[type]||"") + "<span>" + escapeHtml(message) + "</span>";
-    document.getElementById("toastContainer").appendChild(toast);
-    setTimeout(() => {
-      toast.style.opacity = "0"; toast.style.transform = "translateX(20px)";
-      toast.style.transition = "all .25s ease";
-      setTimeout(() => toast.remove(), 250);
-    }, 4000);
-  }
-
-  /* ═══════════════════════════════════════════════════════════
-     CHALLAN
-  ═══════════════════════════════════════════════════════════ */
-
-  let challanBilledList = [];
-  let currentChallanData = null;
-
-  /** Called when user first opens the Challan view */
-  function loadBilledList(isManualRefresh) {
-
-    const select   = document.getElementById("challanSelect");
-    const hint     = document.getElementById("challanSelectHint");
-
-    if (!isManualRefresh) {
-      select.innerHTML = "<option value=''>Loading…</option>";
-    }
-
-    hint.innerText = "Loading submitted bills…";
-
-    google.script.run
-      .withSuccessHandler(function (list) {
-
-        challanBilledList = list;
-        let html = "<option value=''>Select a billed IN number…</option>";
-
-        list.forEach(item => {
-          html += `<option value="${escapeHtml(item.inNo)}">
-            ${escapeHtml(item.inNo)} — ${escapeHtml(item.billNo)} — ${escapeHtml(item.party)}
-          </option>`;
-        });
-
-        select.innerHTML = html;
-        hint.innerText   = list.length + " billed record" + (list.length===1?"":"s") + " found";
-
-        if (isManualRefresh) showToast("Billed list refreshed", "success");
-
-      })
-      .withFailureHandler(function (err) {
-        hint.innerText = "Failed to load billed records.";
-        showToast(err.toString(), "danger");
-      })
-      .getBilledINList();
-
-  }
-
-  /** Called when user selects an IN from the challan dropdown */
-  function loadChallan() {
-
-    const inNo = document.getElementById("challanSelect").value;
-
-    // Reset preview
-    document.getElementById("challanPreview").classList.remove("show");
-    document.getElementById("challanEmptyState").style.display = "flex";
-    document.getElementById("challanSummary").style.display    = "none";
-    document.getElementById("challanLoadingState").style.display = "none";
-    currentChallanData = null;
-
-    if (!inNo) return;
-
-    document.getElementById("challanLoadingState").style.display = "block";
-    document.getElementById("challanEmptyState").style.display   = "none";
-
-    google.script.run
-      .withSuccessHandler(function (data) {
-
-        document.getElementById("challanLoadingState").style.display = "none";
-
-        if (!data || data.error) {
-          showToast(data ? data.error : "Could not load challan data.", "danger");
-          document.getElementById("challanEmptyState").style.display = "flex";
-          return;
-        }
-
-        currentChallanData = data;
-        updateChallanSummary(data);
-        renderChallanPreview(data);
-
-        document.getElementById("challanSummary").style.display = "block";
-        document.getElementById("challanPreview").classList.add("show");
-        document.getElementById("challanEmptyState").style.display = "none";
-
-      })
-      .withFailureHandler(function (err) {
-        document.getElementById("challanLoadingState").style.display = "none";
-        document.getElementById("challanEmptyState").style.display   = "flex";
-        showToast(err.toString(), "danger");
-      })
-      .getChallanData(inNo);
-
-  }
-
-  function updateChallanSummary(d) {
-    document.getElementById("cs_billNo").innerText  = d.billNo;
-    document.getElementById("cs_billDate").innerText = d.billDate;
-    document.getElementById("cs_party").innerText   = d.partyName;
-    document.getElementById("cs_truck").innerText   = d.truckNo;
-    document.getElementById("cs_route").innerText   = (d.fromLocation||"—") + " → " + (d.destination||"—");
-    document.getElementById("cs_weight").innerText  = d.netWeight + " MT";
-  }
-
-  /** Format weight to 3 decimal places like the PDF */
-  function fmtWeight(w) {
-    const n = parseFloat(w);
-    return isNaN(n) ? (w || '—') : n.toFixed(3);
-  }
-
-  /** Convert newline / comma-separated address to <br> separated HTML */
-  function fmtAddress(addr) {
-    if (!addr) return '';
-    return escapeHtml(addr).replace(/\n/g, '<br>');
-  }
-
-  /**
-   * Build one challan block (Original OR Duplicate).
-   * Matches the PDF layout exactly:
-   *  - 4 logical columns: [consignee wide | field-label | field-value-wide]
-   *  - Title row: "Delivery Challan" bold large | copy label italic
-   *  - Company header full-width
-   *  - Consignee: label+name+address on left (rowspan), date/challan/truck/from/to on right
-   *  - Material header + data row
-   *  - Declaration left | "For, Rawalwasia..." right
-   *  - Signature row
-   *  - Jurisdiction footer
-   */
-  function buildChallanBlock(d, copyLabel) {
-    const e   = escapeHtml;
-    const fw  = fmtWeight;
-    const fa  = fmtAddress;
-    return `
-    <div class="challan-block">
-      <table>
-
-        <!-- ① Title -->
-        <tr>
-          <td colspan="3" class="ch-title">Delivery Challan</td>
-          <td class="ch-copy-cell">${e(copyLabel)}</td>
-        </tr>
-
-        <!-- ② Company header -->
-        <tr>
-          <td colspan="4" class="ch-header-cell">
-            <div class="ch-company">Rawalwasia Textile Industries Pvt. Ltd.</div>
-            <div class="ch-address">
-              Office No. 104, 1st Floor, Raghuvir Textile Mall<br>
-              Aai Mata Road, Dumbhal, Parvat Patia, Surat - 395010.<br>
-              Mob: 7046009520, 7046009515, 7046009519, 7573039884, 7573039654<br>
-              GSTN: 24AABCR1216P1ZF
-            </div>
-          </td>
-        </tr>
-
-        <!-- ③ Consignee label row -->
-        <tr>
-          <td colspan="2" rowspan="5" class="ch-addr-cell" style="width:52%;">
-            <span class="ch-label">Consignee :</span><br><br>
-            <span style="font-weight:bold;">${e(d.partyName)}</span><br>
-            ${fa(d.partyAddress)}
-          </td>
-          <td class="ch-field-label">Date</td>
-          <td class="ch-field-value">${e(d.billDate)}</td>
-        </tr>
-
-        <!-- ④ Challan No -->
-        <tr>
-          <td class="ch-field-label">Challan No.</td>
-          <td class="ch-field-value">${e(d.billNo)}</td>
-        </tr>
-
-        <!-- ⑤ Truck No -->
-        <tr>
-          <td class="ch-field-label">Truck No.</td>
-          <td class="ch-field-value">${e(d.truckNo)}</td>
-        </tr>
-
-        <!-- ⑥ From -->
-        <tr>
-          <td class="ch-field-label">From</td>
-          <td class="ch-field-value">${e(d.fromLocation)}</td>
-        </tr>
-
-        <!-- ⑦ To -->
-        <tr>
-          <td class="ch-field-label">To</td>
-          <td class="ch-field-value ch-to-cell">${e(d.destination)}</td>
-        </tr>
-
-        <!-- ⑨ Wait — PDF has 5 columns in material section, last is Net Weight -->
-        <!-- We rebuild this as a 5-col span using nested table trick or colspan -->
-
-      </table>
-
-      <!-- Material data — separate mini-table to allow 5 cols cleanly -->
-      <table style="margin-top:-1px;">
-        <tr class="ch-mat-head">
-          <td style="width:28%;border-top:none;">Description</td>
-          <td style="width:12%;border-top:none;">HSN</td>
-          <td style="border-top:none;">Gross Weight (MT)</td>
-          <td style="border-top:none;">Tare Weight (MT)</td>
-          <td style="border-top:none;">Net Weight (MT)</td>
-        </tr>
-        <tr class="ch-mat-data">
-          <td>Imported Steam Coal</td>
-          <td>27011920</td>
-          <td>${fw(d.grossWeight)} MT</td>
-          <td>${fw(d.tareWeight)} MT</td>
-          <td>${fw(d.netWeight)} MT</td>
-        </tr>
-      </table>
-
-      <!-- Declaration + auth + signatures + footer -->
-      <table style="margin-top:-1px;">
-        <tr>
-          <td style="width:52%;" class="ch-decl-cell">
-            1. Goods once sold will not be taken back or exchanged.<br>
-            2. Received the above goods in good order &amp; condition.
-          </td>
-          <td class="ch-auth-cell">
-            For, Rawalwasia Textile Ind. Pvt. Ltd.
-          </td>
-        </tr>
-        <tr>
-          <td class="ch-sig-cell">Receiver's Signature with Stamp</td>
-          <td class="ch-sig-cell">Authorised Signatory</td>
-        </tr>
-        <tr class="ch-footer">
-          <td colspan="2">SUBJECT TO SURAT JURISDICTION</td>
-        </tr>
-      </table>
-    </div>`;
-  }
-
-  function renderChallanPreview(d) {
-    // Preview shows both Original + Duplicate on one paper (like the actual print)
-    const preview = document.getElementById("challanPreview");
-    preview.innerHTML =
-      buildChallanBlock(d, "Original") +
-      '<div class="challan-sep"><span>✂ &nbsp; DUPLICATE COPY &nbsp; ✂</span></div>' +
-      buildChallanBlock(d, "Duplicate");
-  }
-
-  /** Print: both copies on one A4 — no page break between them */
-  function printChallan() {
-
-    if (!currentChallanData) {
-      showToast("No challan loaded. Select an IN number first.", "danger");
-      return;
-    }
-
-    const d = currentChallanData;
-    const printArea = document.getElementById("challanPrintArea");
-
-    printArea.innerHTML =
-      buildChallanBlock(d, "Original") +
-      '<div class="challan-sep"><span>✂ &nbsp; DUPLICATE COPY &nbsp; ✂</span></div>' +
-      buildChallanBlock(d, "Duplicate");
-
-    setTimeout(function () {
-      window.print();
-      setTimeout(function () { printArea.innerHTML = ""; }, 1200);
-    }, 120);
-
-  }
-
-/* ═══════════════════════════════════════════════════════════
-   WEIGHMENT SLIP
-═══════════════════════════════════════════════════════════ */
-let currentWeighmentData = null;
-
-let weighmentINList = [];
-
-/** Loads ALL dispatch IN numbers for the weighment dropdown */
-function loadWeighmentDropdown(isManualRefresh) {
-
-  const select = document.getElementById("wsSelect");
-  const hint   = document.getElementById("wsSelectHint");
-  const btn    = event ? event.currentTarget : null;
-
-  if (isManualRefresh && btn) {
-    setBtnLoading(btn, true, "Refreshing…", "wsRefreshLabel");
-  }
-
-  hint.innerText = "Loading IN numbers…";
-
-  google.script.run
-    .withSuccessHandler(function (list) {
-
-      challanBilledList = list;
-      let html = "<option value=''>Select an IN number…</option>";
-
-      list.forEach(item => {
-        html += `<option value="${escapeHtml(item.inNo)}">${escapeHtml(item.inNo)} — ${escapeHtml(item.party||'')}</option>`;
-      });
-
-      select.innerHTML = html;
-      hint.innerText = list.length + " IN number" + (list.length===1?"":"s") + " available";
-
-      if (isManualRefresh) {
-        if (btn) setBtnLoading(btn, false, "Refresh", "wsRefreshLabel");
-        showToast("IN number list refreshed", "success");
-      }
-
-    })
-    .withFailureHandler(function (err) {
-      hint.innerText = "Failed to load IN numbers.";
-      if (isManualRefresh && btn) setBtnLoading(btn, false, "Refresh", "wsRefreshLabel");
-      showToast(err.toString(), "danger");
-    })
-    .getBilledINList(); // reuse — returns dispatch IN numbers with party info
-
+  return HtmlService
+    .createTemplateFromFile("Billing Dashboard Page")
+    .evaluate()
+    .setTitle("Bill Management — Rawalwasia")
+    .addMetaTag("viewport", "width=device-width, initial-scale=1");
 }
 
-function loadWeighmentSlip() {
-  const inNo = document.getElementById("wsSelect").value;
-  document.getElementById("wsPreview").classList.remove("show");
-  document.getElementById("wsPrintBtn").disabled = true;
-  document.getElementById("WeighmentLoadingState").style.display = "none";
-  document.getElementById("weightmentSummary").style.display = "none";
-  currentWeighmentData = null;
-  if (!inNo) return;
-  document.getElementById("WeighmentLoadingState").style.display = "block";
+/***********************************************************
+ *  AUTHORIZED USER ACCES  ONLY
+ ***********************************************************/
+function isAuthorizedUser() {
 
-  google.script.run
-    .withSuccessHandler(function (data) {
-      document.getElementById("WeighmentLoadingState").style.display = "none";
-      if (!data || data.error) {
-        showToast(data ? data.error : "Could not load weighment data.", "danger");
-        return;
-      }
-      currentWeighmentData = data;
-      document.getElementById("weightmentSummary").style.display = "block";
-      
-      updateWeightmentSlipSummary(data);
+  const email = Session.getActiveUser().getEmail().toLowerCase();
 
-      renderWeighmentSlip(data, "wsPreview");
-      document.getElementById("wsPreview").classList.add("show");
-      document.getElementById("wsPrintBtn").disabled = false;
+  const values = Sheets.Spreadsheets.Values.get(
+    CONFIG.TRIAL_BILL_SS_ID,
+    `${CONFIG.BILLER_SHEET}!G2:G`
+  ).values || [];
 
-    })
-
-
-    .withFailureHandler(function (err) { showToast(err.toString(), "danger"); })
-    .getWeighmentSlipData(inNo);
-    
-}
-
-document.getElementById("ws_port").addEventListener("change", function () {
-
-  if (!currentWeighmentData) return;
-
-  const port = this.value.trim();
-
-  const found = portMaster.find(
-    x => x.port.toLowerCase() === port.toLowerCase()
+  const allowedUsers = new Set(
+    values.flat().map(e => String(e).toLowerCase().trim())
   );
 
-  if (!found) {
+  return allowedUsers.has(email);
 
-    showToast("Please select a valid Port.", "warning");
-    this.value = currentWeighmentData.port;
-    return;
+}
 
-  }
+function include(filename) {
+  return HtmlService.createHtmlOutputFromFile(filename).getContent();
+}
 
-  currentWeighmentData.port = found.port;
-  currentWeighmentData.state = found.state;
-  currentWeighmentData.pin = found.pin;
+/***********************************************************
+ *  CURRENT USER
+ ***********************************************************/
+function getCurrentUser() {
 
-  document.getElementById("ws_state").innerText = found.state;
-  document.getElementById("ws_pin").innerText = found.pin;
+  const email = Session.getActiveUser().getEmail().toLowerCase();
 
-  renderWeighmentSlip(currentWeighmentData, "wsPreview");
+  try {
 
-});
+    const cache = CacheService.getScriptCache();
 
-function updateWeightmentSlipSummary(d) {
-      document.getElementById("ws_billNo").innerText  = d.inNo;
-      document.getElementById("ws_billDate").innerText = d.grossDate;
-      document.getElementById("ws_state").innerText   = d.state;
-      document.getElementById("ws_truck").innerText   = d.vehicleNo;
-      document.getElementById("ws_port").value = d.port || "";
-      document.getElementById("ws_weight").innerText  = d.netWeightKG + " Kg";
+    let userMap = cache.get("userMap");
+
+    if (userMap) {
+
+      userMap = JSON.parse(userMap);
+
+    } else {
+
+      const response = Sheets.Spreadsheets.Values.get(
+        CONFIG.TRIAL_BILL_SS_ID,
+        `${CONFIG.USER_SHEET}!A:B`
+      );
+
+      const values = response.values || [];
+
+      userMap = {};
+
+      // Skip header
+      for (let i = 1; i < values.length; i++) {
+
+        const rowEmail = String(values[i][0] || "")
+          .trim()
+          .toLowerCase();
+
+        const rowName = String(values[i][1] || "").trim();
+
+        if (rowEmail) {
+
+          userMap[rowEmail] = rowName;
+
+        }
+
+      }
+
+      // Cache for 6 hours
+      cache.put(
+        "userMap",
+        JSON.stringify(userMap),
+        21600
+      );
+
     }
 
-function loadPortList() {
+    return {
 
-  console.log("Loading Port List...");
+      email: email,
 
-  google.script.run
-    .withSuccessHandler(function(data) {
+      name:
+        userMap[email] ||
+        email.split("@")[0]
 
-      portMaster = data;
+    };
 
-      let html = "";
-
-      data.forEach(r => {
-        html += `<option value="${escapeHtml(r.port)}">${escapeHtml(r.port)}</option>`;
-      });
-
-      document.getElementById("wsPortList").innerHTML = html;
-
-    })
-    .getPortList();
-
-}    
-
-/** Format a KG number with thousands separator + 2 decimals, e.g. 34330 -> "34,330.00" */
-function fmtKg(n) {
-  const num = Number(n) || 0;
-  return num.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
-
-function buildWeighmentSlipHTML(d) {
-  const e = escapeHtml;
-  return `
-    <div class="ws-title">Weighment Slip</div>
-
-    <div class="ws-header-block">
-      <div class="ws-header-row">
-        <span class="ws-label">Port:</span>
-        <span class="ws-value">${e(d.port)}</span>
-      </div>
-      <div class="ws-header-row">
-        <span class="ws-label">State:</span>
-        <span class="ws-value">${e(d.state)}</span>
-        <span class="ws-label">PIN:</span>
-        <span class="ws-value">${e(d.pin)}</span>
-      </div>
-    </div>
-
-    <table class="ws-table">
-
-      <!-- Ticket No. | Commodity -->
-      <tr>
-        <td class="ws-cell-label" style="width:22%;">Ticket No.:</td>
-        <td class="ws-cell-value" style="width:28%;text-align:center;font-weight:bold;">${e(d.ticketNo)}</td>
-        <td class="ws-cell-label ws-cell-divider" style="width:24%;">Commodity:</td>
-        <td class="ws-cell-value" style="width:26%;">${e(d.commodity)}</td>
-      </tr>
-
-      <!-- Vehicle No. -->
-      <tr>
-        <td class="ws-cell-label">Vehicle No.:</td>
-        <td class="ws-cell-value" colspan="3">${e(d.vehicleNo)}</td>
-      </tr>
-
-      <!-- Gross Weight -->
-      <tr>
-        <td class="ws-cell-label">Gross Weight:</td>
-        <td class="ws-cell-value">${fmtKg(d.grossWeightKG)}</td>
-        <td class="ws-cell-label">Date: ${e(d.grossDate)}</td>
-        <td class="ws-cell-value">Time: ${e(d.grossTime)}</td>
-      </tr>
-
-      <!-- Tare Weight -->
-      <tr>
-        <td class="ws-cell-label">Tare Weight:</td>
-        <td class="ws-cell-value">${fmtKg(d.tareWeightKG)}</td>
-        <td class="ws-cell-label">Date: ${e(d.tareDate)}</td>
-        <td class="ws-cell-value">Time: ${e(d.tareTime)}</td>
-      </tr>
-
-      <!-- Net Weight (number) -->
-      <tr>
-        <td class="ws-cell-label">Net Weight:</td>
-        <td class="ws-cell-value" colspan="3" style="font-weight:bold;">${fmtKg(d.netWeightKG)}</td>
-      </tr>
-
-      <!-- Net Weight (words) -->
-      <tr>
-        <td class="ws-cell-label">Net Weight:</td>
-        <td class="ws-cell-value" colspan="3" style="white-space:normal;">${e(d.netWeightWords)}</td>
-      </tr>
-
-      <!-- Blank space for stamp -->
-      <tr class="ws-blank-row">
-        <td colspan="4">&nbsp;</td>
-      </tr>
-
-      <!-- Signature -->
-      <tr class="ws-sig-row">
-        <td colspan="4">Signature</td>
-      </tr>
-
-    </table>
-  `;
-}
-
-function renderWeighmentSlip(d, targetId) {
-  document.getElementById(targetId).innerHTML = buildWeighmentSlipHTML(d);
-}
-
-
-function printWeighmentSlip() {
-  if (!currentWeighmentData) { 
-    showToast("Select an IN number first.", "danger"); 
-    return; 
   }
-  
-  const d = currentWeighmentData;
-  const printArea = document.getElementById("weighmentPrintArea");
-  
-  // Build complete HTML with Original and Duplicate
-  printArea.innerHTML = 
-    `<div style="page-break-after: always; padding: 10mm; font-family: Calibri, Arial, sans-serif;">
-      ${buildWeighmentSlipHTML(d)}
-    </div>`;
-  
-  // Force visibility for printing
-  printArea.style.display = 'block';
-  printArea.style.position = 'static';
-  printArea.style.visibility = 'visible';
-  
-  setTimeout(function () {
-    window.print();
-    setTimeout(function () { 
-      printArea.innerHTML = ""; 
-      printArea.style.display = 'none';
-    }, 1500);
-  }, 300);  // Increased delay
+  catch (err) {
+
+    Logger.log(err);
+
+    return {
+
+      email: email,
+      name: email.split("@")[0]
+
+    };
+
+  }
+
 }
 
-  </script>
+/***********************************************************
+ *  CLAIMS — helpers
+ ***********************************************************/
 
-</body>
+/** Get or create the Claims sheet */
+function getClaimsData_() {
 
-</html>
+  try {
+
+    const res = Sheets.Spreadsheets.Values.get(
+      CONFIG.CLAIMS_SS_ID,
+      `${CONFIG.CLAIMS_SHEET}!A:D`
+    );
+
+    return res.values || [];
+
+  } catch (e) {
+
+    // Create header if sheet is empty/not found
+    Sheets.Spreadsheets.Values.update(
+      {
+        values: [["Timestamp", "IN No", "User Name", "Email"]]
+      },
+      CONFIG.CLAIMS_SS_ID,
+      `${CONFIG.CLAIMS_SHEET}!A1`,
+      { valueInputOption: "RAW" }
+    );
+
+    return [["Timestamp", "IN No", "User Name", "Email"]];
+
+  }
+
+}
+
+/**
+ * Remove all rows where:
+ *  - the claim has expired (> CLAIM_TTL_MS old), OR
+ *  - the IN number matches AND the email matches (user releasing their own claim)
+ */
+function saveClaims_(rows) {
+
+  Sheets.Spreadsheets.Values.clear(
+    {},
+    CONFIG.CLAIMS_SS_ID,
+    `${CONFIG.CLAIMS_SHEET}!A:D`
+  );
+
+  Sheets.Spreadsheets.Values.update(
+    {
+      values: rows
+    },
+    CONFIG.CLAIMS_SS_ID,
+    `${CONFIG.CLAIMS_SHEET}!A1`,
+    {
+      valueInputOption: "RAW"
+    }
+  );
+
+}
+
+/***********************************************************
+ *  claimIN — called when a user selects an IN number
+ *  Returns: { claimed: false }           — successfully claimed, user may proceed
+ *           { claimed: true, by, since } — already claimed by someone else
+ ***********************************************************/
+function claimIN(inNo) {
+
+  const user = getCurrentUser();
+  const lock = LockService.getScriptLock();
+
+  try {
+
+    lock.waitLock(10000);
+
+    const values = getClaimsData_();
+
+    const header = values[0] || [
+      "Timestamp",
+      "IN No",
+      "User Name",
+      "Email"
+    ];
+
+    const now = Date.now();
+
+    let claims = values.slice(1);
+
+    // Remove expired claims
+    claims = claims.filter(r => {
+
+      const ts = r[0] ? new Date(r[0]).getTime() : 0;
+
+      return (now - ts) <= CONFIG.CLAIM_TTL_MS;
+
+    });
+
+    for (let i = 0; i < claims.length; i++) {
+
+      const rowInNo = String(claims[i][1]).trim();
+      const rowName = String(claims[i][2]).trim();
+      const rowEmail = String(claims[i][3]).trim();
+      const rowTs = claims[i][0]
+        ? new Date(claims[i][0]).getTime()
+        : 0;
+
+      if (rowInNo !== inNo) continue;
+
+      // Another user owns it
+      if (rowEmail !== user.email) {
+
+        const ageSec = Math.floor((now - rowTs) / 1000);
+
+        const agoStr =
+          ageSec < 60
+            ? ageSec + "s ago"
+            : Math.floor(ageSec / 60) + "m ago";
+
+        return {
+          claimed: true,
+          by: rowName,
+          since: agoStr
+        };
+
+      }
+
+      // Same user → refresh timestamp
+      claims[i][0] = new Date().toISOString();
+
+      saveClaims_([header, ...claims]);
+
+      return { claimed: false };
+
+    }
+
+    // New claim
+    claims.push([
+      new Date().toISOString(),
+      inNo,
+      user.name,
+      user.email
+    ]);
+
+    saveClaims_([header, ...claims]);
+
+    return { claimed: false };
+
+  }
+  catch (e) {
+
+    Logger.log(e);
+    return { claimed: false };
+
+  }
+  finally {
+
+    try {
+      lock.releaseLock();
+    } catch (e) { }
+
+  }
+
+}
+
+/***********************************************************
+ *  releaseClaim — called when user deselects, submits,
+ *  or the page unloads (navigator.sendBeacon)
+ ***********************************************************/
+function releaseClaim(inNo) {
+
+  const user = getCurrentUser();
+
+  try {
+
+    const values = getClaimsData_();
+
+    if (values.length <= 1) return;
+
+    const header = values[0];
+
+    const rows = values.slice(1);
+
+    const now = Date.now();
+
+    const filtered = rows.filter(r => {
+
+      const ts = r[0]
+        ? new Date(r[0]).getTime()
+        : 0;
+
+      const expired =
+        (now - ts) > CONFIG.CLAIM_TTL_MS;
+
+      const ownClaim =
+        String(r[1]).trim() === String(inNo).trim() &&
+        String(r[3]).trim() === user.email;
+
+      return !(expired || ownClaim);
+
+    });
+
+    saveClaims_([header, ...filtered]);
+
+  }
+  catch (e) {
+
+    Logger.log(e);
+
+  }
+
+}
+
+/***********************************************************
+ *  checkBiltyExists — lightweight as-you-type check
+ *  Returns { exists: bool, inNo: string|null }
+ ***********************************************************/
+function checkBiltyExists(billNo) {
+
+  if (!billNo || !billNo.trim()) {
+    return {
+      exists: false,
+      inNo: null
+    };
+  }
+
+  try {
+
+    const response = Sheets.Spreadsheets.Values.get(
+      CONFIG.TRIAL_BILL_SS_ID,
+      `${CONFIG.BILL_SUBMIT_SHEET}!B109216:C`
+    );
+
+    const data = response.values || [];
+    const needle = String(billNo).trim().toLowerCase();
+
+    for (const row of data) {
+
+      const inNo = String(row[0] || "").trim();
+      const existingBillNo = String(row[1] || "").trim().toLowerCase();
+
+      if (existingBillNo === needle) {
+
+        return {
+          exists: true,
+          inNo: inNo
+        };
+
+      }
+
+    }
+
+    return {
+      exists: false,
+      inNo: null
+    };
+
+  }
+  catch (err) {
+
+    Logger.log(err);
+
+    return {
+      exists: false,
+      inNo: null
+    };
+
+  }
+
+}
+
+/***********************************************************
+ *  PENDING BILLS
+ ***********************************************************/
+function getPendingBills() {
+
+  try {
+
+    // ───────────────── Dispatch Data ─────────────────
+    const dispatchData =
+      Sheets.Spreadsheets.Values.get(
+        CONFIG.DISPATCH_SS_ID,
+        `${CONFIG.DISPATCH_SHEET}!A42000:AF`
+      ).values || [];
+
+    // ───────────────── Submitted Bills ─────────────────
+    let billedSet = new Set();
+
+    try {
+
+      const submitData =
+        Sheets.Spreadsheets.Values.get(
+          CONFIG.TRIAL_BILL_SS_ID,
+          `${CONFIG.BILL_SUBMIT_SHEET}!B100000:B`
+        ).values || [];
+
+      billedSet = new Set(
+        submitData
+          .flat()
+          .map(x => String(x).trim())
+          .filter(String)
+      );
+
+    } catch (e) {
+      Logger.log(e);
+    }
+
+    // ───────────────── Live Claims ─────────────────
+    let claimsMap = {};
+
+    try {
+
+      const claimSheet = getClaimsSheet_();
+
+      const claimLast = claimSheet.getLastRow();
+
+      if (claimLast > 1) {
+
+        const cData = claimSheet
+          .getRange(2, 1, claimLast - 1, 4)
+          .getValues();
+
+        const now = Date.now();
+
+        cData.forEach(r => {
+
+          const ts =
+            r[0]
+              ? new Date(r[0]).getTime()
+              : 0;
+
+          const rowInNo = String(r[1] || "").trim();
+          const rowName = String(r[2] || "").trim();
+
+          if (
+            rowInNo &&
+            (now - ts) <= CONFIG.CLAIM_TTL_MS
+          ) {
+
+            claimsMap[rowInNo] = rowName;
+
+          }
+
+        });
+
+      }
+
+    } catch (e) {
+      Logger.log(e);
+    }
+
+    // ───────────────── Pending List ─────────────────
+    let pending = [];
+
+    for (let i = 0; i < dispatchData.length; i++) {
+
+      const row = dispatchData[i];
+
+      const inNo = String(
+        row[CONFIG.COL_IN_NO - 1] || ""
+      ).trim();
+
+      const outTime =
+        row[CONFIG.COL_OUTTIME - 1];
+
+      const remarks = String(
+        row[CONFIG.COL_REMARKS - 1] || ""
+      ).trim();
+
+      if (
+        inNo &&
+        outTime &&
+        remarks !== "Cancel Entry" &&
+        !billedSet.has(inNo)
+      ) {
+
+        pending.push({
+
+          inNo: inNo,
+
+          party:
+            row[CONFIG.COL_PARTY - 1] || "",
+
+          truck:
+            row[CONFIG.COL_TRUCK - 1] || "",
+
+          outTime: outTime
+            ? Utilities.formatDate(
+              new Date(outTime),
+              Session.getScriptTimeZone(),
+              "dd-MMM-yyyy HH:mm"
+            )
+            : "",
+
+          claimedBy:
+            claimsMap[inNo] || null
+
+        });
+
+      }
+
+    }
+
+    // Most recent first
+    pending.reverse();
+
+    return pending;
+
+  } catch (err) {
+
+    Logger.log(err);
+
+    return [];
+
+  }
+
+}
+
+function refreshPendingBills() {
+  return getPendingBills();
+}
+
+/***********************************************************
+ *  BILL DETAILS FOR A SINGLE IN NUMBER
+ ***********************************************************/
+function getBillDetails(inNo) {
+
+  try {
+
+    const startRow = 42000;
+
+    // ───────────────── Dispatch Sheet ─────────────────
+    const dispatchData =
+      Sheets.Spreadsheets.Values.get(
+        CONFIG.DISPATCH_SS_ID,
+        `${CONFIG.DISPATCH_SHEET}!A${startRow}:AF`
+      ).values || [];
+
+    let selectedRow = null;
+
+    for (let i = 0; i < dispatchData.length; i++) {
+
+      const row = dispatchData[i];
+
+      if (
+        String(row[CONFIG.COL_IN_NO - 1] || "").trim() ===
+        String(inNo).trim()
+      ) {
+
+        selectedRow = row;
+        break;
+
+      }
+
+    }
+
+    if (!selectedRow) return null;
+
+    const soNo = String(
+      selectedRow[CONFIG.COL_SONO - 1] || ""
+    ).trim();
+
+    const pdo = String(
+      selectedRow[CONFIG.COL_PDO - 1] || ""
+    ).trim();
+
+    const doNo = String(
+      selectedRow[CONFIG.COL_DONO - 1] || ""
+    ).trim();
+
+    // ───────────────── Sheet23 ─────────────────
+    let tallyVesselName = "";
+    let handlingRate = "";
+
+    const sheet23Data =
+      Sheets.Spreadsheets.Values.get(
+        CONFIG.VESSEL_SS_ID,
+        "Sheet23!A:O"
+      ).values || [];
+
+    for (let i = 1; i < sheet23Data.length; i++) {
+
+      const row = sheet23Data[i];
+
+      if (String(row[0] || "").trim() !== pdo) continue;
+
+      if (soNo.startsWith("RMPL")) {
+        tallyVesselName = String(row[12] || "").trim();
+      }
+      else if (soNo.startsWith("GLBL")) {
+        tallyVesselName = String(row[13] || "").trim();
+      }
+      else if (soNo.startsWith("OTHR")) {
+        tallyVesselName = String(row[14] || "").trim();
+      }
+      else {
+        tallyVesselName = String(row[4] || "").trim();
+      }
+
+      break;
+
+    }
+
+    // Handling rate
+    for (let i = 1; i < sheet23Data.length; i++) {
+
+      const row = sheet23Data[i];
+
+      if (
+        String(row[4] || "").trim() === tallyVesselName
+      ) {
+
+        handlingRate = row[6] || "0";
+        break;
+
+      }
+
+    }
+
+    // ───────────────── Sales Order ─────────────────
+    let soType = "";
+    let salesOrderDestination = "";
+    let salesOrderPartyName = "";
+
+    const salesOrderData =
+      Sheets.Spreadsheets.Values.get(
+        CONFIG.SALES_ORDER_SS_ID,
+        `${CONFIG.SALES_ORDER_SHEET}!B:AK`
+      ).values || [];
+
+    for (let i = 1; i < salesOrderData.length; i++) {
+
+      const row = salesOrderData[i];
+
+      if (
+        String(row[0] || "").trim() === soNo
+      ) {
+
+        salesOrderDestination = row[7] || "";
+        soType = row[30] || "";
+        salesOrderPartyName = row[35] || "";
+
+        break;
+
+      }
+
+    }
+
+    // ───────────────── DO Form ─────────────────
+    let billPort = "";
+
+    const doFormData =
+      Sheets.Spreadsheets.Values.get(
+        CONFIG.SALES_ORDER_SS_ID,
+        `${CONFIG.DO_FORM_SHEET}!B:V`
+      ).values || [];
+
+    for (let i = 1; i < doFormData.length; i++) {
+
+      const row = doFormData[i];
+
+      if (
+        String(row[0] || "").trim() === doNo
+      ) {
+
+        billPort = row[20] || "";
+        break;
+
+      }
+
+    }
+
+    // ───────────────── Return Object ─────────────────
+    return JSON.parse(JSON.stringify({
+
+      inNo: inNo,
+
+      inTime: selectedRow[CONFIG.COL_INTIME - 1] || "",
+      outTime: selectedRow[CONFIG.COL_OUTTIME - 1] || "",
+
+      party: selectedRow[CONFIG.COL_PARTY - 1] || "",
+      from: selectedRow[CONFIG.COL_FROM - 1] || "",
+      destination: selectedRow[CONFIG.COL_DESTINATION - 1] || "",
+      truck: selectedRow[CONFIG.COL_TRUCK - 1] || "",
+      transporter: selectedRow[CONFIG.COL_TRANSPORTER - 1] || "",
+      trasnportPurchaseRate:
+        selectedRow[CONFIG.COL_TRANSPORTPURCHASERATE - 1] || "",
+
+      trader: selectedRow[CONFIG.COL_TRADER - 1] || "",
+      vesselName: selectedRow[CONFIG.COL_VESSELNAME - 1] || "",
+      sealNo: selectedRow[CONFIG.COL_SEALNO - 1] || "",
+
+      grossWeight: String(
+        selectedRow[CONFIG.COL_GROSSWEIGHT - 1] || ""
+      ),
+
+      tareWeight: String(
+        selectedRow[CONFIG.COL_TAREWEIGHT - 1] || ""
+      ),
+
+      netWeight: String(
+        selectedRow[CONFIG.COL_NET_WEIGHT - 1] || ""
+      ),
+
+      term: String(
+        selectedRow[CONFIG.COL_TERM - 1] || ""
+      ),
+
+      soNo: soNo,
+      pdo: pdo,
+      doNo: doNo,
+
+      soType: soType,
+      tallyVesselName: tallyVesselName,
+      handlingRate: handlingRate,
+
+      salesOrderPartyName: salesOrderPartyName,
+      salesOrderDestination: salesOrderDestination,
+      billPort: billPort
+
+    }));
+
+  }
+  catch (err) {
+
+    Logger.log(err);
+
+    return null;
+
+  }
+
+}
+
+/***********************************************************
+ *  CREATE BILL
+ ***********************************************************/
+function createBill(inNo, billNo, billBy) {
+
+  const email = Session.getActiveUser().getEmail();
+  const user = getCurrentUser();
+
+  const lock = LockService.getScriptLock();
+
+  try {
+
+    lock.waitLock(30000);
+
+    // Read existing IN + Bill No using Sheets API
+    const existingData =
+      Sheets.Spreadsheets.Values.get(
+        CONFIG.TRIAL_BILL_SS_ID,
+        `${CONFIG.BILL_SUBMIT_SHEET}!B100000:C`
+      ).values || [];
+
+    const billedSet = new Set();
+    const billNoSet = new Set();
+
+    existingData.forEach(row => {
+
+      billedSet.add(
+        String(row[0] || "").trim()
+      );
+
+      billNoSet.add(
+        String(row[1] || "").trim()
+      );
+
+    });
+
+    if (billedSet.has(String(inNo).trim())) {
+
+      return {
+        success: false,
+        message: "A bill already exists for this IN number."
+      };
+
+    }
+
+    if (billNoSet.has(String(billNo).trim())) {
+
+      return {
+        success: false,
+        message: "This bilty number has already been used."
+      };
+
+    }
+
+    // Write using SpreadsheetApp
+    const ss = SpreadsheetApp.openById(
+      CONFIG.TRIAL_BILL_SS_ID
+    );
+
+    const submitSheet =
+      ss.getSheetByName(
+        CONFIG.BILL_SUBMIT_SHEET
+      );
+
+    submitSheet.appendRow([
+      new Date(),
+      inNo,
+      billNo,
+      user.name,
+      email,
+      generateUID()
+    ]);
+
+    // Release claim after successful bill creation
+    try {
+      releaseClaim(inNo);
+    } catch (e) { }
+
+    return {
+      success: true,
+      message: "Bill created successfully."
+    };
+
+  }
+  catch (e) {
+
+    return {
+      success: false,
+      message: e.toString()
+    };
+
+  }
+  finally {
+
+    try {
+      lock.releaseLock();
+    }
+    catch (e) { }
+
+  }
+
+}
+
+/***********************************************************
+ *  LAST 100 SUBMITTED BILLS
+ ***********************************************************/
+function getRecentBills() {
+
+  try {
+
+    const meta = Sheets.Spreadsheets.get(
+      CONFIG.TRIAL_BILL_SS_ID,
+      { fields: "sheets(properties(title,gridProperties(rowCount)))" }
+    );
+
+    const sheetInfo = meta.sheets.find(
+      s => s.properties.title === CONFIG.BILL_SUBMIT_SHEET
+    );
+
+    const lastRow = sheetInfo.properties.gridProperties.rowCount;
+
+    const startRow = Math.max(2, lastRow - 99);
+
+    const response = Sheets.Spreadsheets.Values.get(
+      CONFIG.TRIAL_BILL_SS_ID,
+      `${CONFIG.BILL_SUBMIT_SHEET}!A${startRow}:F${lastRow}`
+    );
+
+    const data = (response.values || []).reverse();
+
+    return data.map(row => ({
+      date: row[0]
+        ? Utilities.formatDate(
+          new Date(row[0]),
+          Session.getScriptTimeZone(),
+          "dd-MMM-yyyy HH:mm"
+        )
+        : "",
+      inNo: String(row[1] || "").trim(),
+      billNo: String(row[2] || "").trim(),
+      billBy: String(row[3] || "").trim(),
+      email: String(row[4] || "").trim(),
+      uid: String(row[5] || "").trim()
+    }));
+
+  } catch (err) {
+
+    Logger.log(err);
+    return [];
+
+  }
+
+}
+
+/***********************************************************
+ *  CHALLAN DATA
+ *  Returns all fields needed to render a Delivery Challan.
+ *  Looks up the submitted bill for billNo, then enriches
+ *  with dispatch data + sales order party address.
+ ***********************************************************/
+function getChallanData(inNo) {
+
+  try {
+
+    //────────────────────────────
+    // 1. Dispatch Data
+    //────────────────────────────
+    const dispatchResponse = Sheets.Spreadsheets.Values.get(
+      CONFIG.DISPATCH_SS_ID,
+      `${CONFIG.DISPATCH_SHEET}!A40000:AF`
+    );
+
+    const dispatchData = dispatchResponse.values || [];
+
+    let dispatchRow = null;
+
+    for (const row of dispatchData) {
+
+      if (
+        String(row[CONFIG.COL_IN_NO - 1] || "").trim() ===
+        String(inNo).trim()
+      ) {
+        dispatchRow = row;
+        break;
+      }
+
+    }
+
+    if (!dispatchRow) {
+
+      return {
+        error: "Dispatch record not found for IN : " + inNo
+      };
+
+    }
+
+
+    //────────────────────────────
+    // 2. Bill Submit Data
+    //────────────────────────────
+    const submitResponse = Sheets.Spreadsheets.Values.get(
+      CONFIG.TRIAL_BILL_SS_ID,
+      `${CONFIG.BILL_SUBMIT_SHEET}!A109216:D`
+    );
+
+    const submitData = submitResponse.values || [];
+
+    let billNo = "";
+    let billDate = "";
+
+    for (const row of submitData) {
+
+      if (
+        String(row[1] || "").trim() === String(inNo).trim()
+      ) {
+
+        billNo = String(row[2] || "").trim();
+
+        billDate = row[0]
+          ? Utilities.formatDate(
+            new Date(row[0]),
+            Session.getScriptTimeZone(),
+            "dd-MMM-yyyy"
+          )
+          : "";
+
+        break;
+
+      }
+
+    }
+
+
+    //────────────────────────────
+    // 3. Destination Address
+    //────────────────────────────
+    let destination = String(
+      dispatchRow[CONFIG.COL_DESTINATION - 1] || ""
+    ).trim();
+
+    let fromLocation = String(
+      dispatchRow[CONFIG.COL_FROM - 1] || ""
+    ).trim()
+
+    let partyAddress = "";
+    let portState = "";
+    let portPincode = "";
+
+    try {
+
+      const billerResponse = Sheets.Spreadsheets.Values.get(
+        CONFIG.TRIAL_BILL_SS_ID,
+        `${CONFIG.BILLER_SHEET}!B:F`
+      );
+
+      const billerData = billerResponse.values || [];
+      // Party Address lookup From biller Sheet
+      for (const row of billerData) {
+        if (
+          String(row[3] || "").trim() === destination
+        ) {
+          partyAddress = String(row[4] || "").trim();
+          break;
+        }
+      }
+
+      // Pin Cose and State lookup From biller Sheet
+      for (const row of billerData) {
+        if (
+          String(row[0] || "").trim() === fromLocation
+        ) {
+          portState = String(row[2] || "").trim();
+          portPincode = String(row[1] || "").trim();
+          break;
+        }
+      }
+    }
+    catch (e) {
+
+      Logger.log("Address lookup failed : " + e);
+
+    }
+
+
+    //────────────────────────────
+    // Return Object
+    //────────────────────────────
+    return {
+
+      inNo: inNo,
+
+      billNo: billNo || "—",
+
+      billDate:
+        billDate ||
+        Utilities.formatDate(
+          new Date(),
+          Session.getScriptTimeZone(),
+          "dd-MMM-yyyy"
+        ),
+
+      partyName: String(
+        dispatchRow[CONFIG.COL_PARTY - 1] || ""
+      ).trim(),
+
+      partyAddress: partyAddress,
+
+      truckNo: String(
+        dispatchRow[CONFIG.COL_TRUCK - 1] || ""
+      ).trim(),
+
+      fromLocation: fromLocation,
+
+      destination: destination,
+
+      grossWeight: String(
+        dispatchRow[CONFIG.COL_GROSSWEIGHT - 1] || ""
+      ).trim(),
+
+      tareWeight: String(
+        dispatchRow[CONFIG.COL_TAREWEIGHT - 1] || ""
+      ).trim(),
+
+      netWeight: String(
+        dispatchRow[CONFIG.COL_NET_WEIGHT - 1] || ""
+      ).trim(),
+
+      vesselName: String(
+        dispatchRow[CONFIG.COL_VESSELNAME - 1] || ""
+      ).trim(),
+
+      // ticketNo: String(inNo).replace(/\D/g, ""), // numeric part only
+
+      // inDate: dispatchRow[CONFIG.COL_INTIME - 1]
+      //   ? Utilities.formatDate(
+      //     new Date(dispatchRow[CONFIG.COL_INTIME - 1]),
+      //     Session.getScriptTimeZone(),
+      //     "dd-MM-yyyy"
+      //   )
+      //   : "",
+
+      // inTime: dispatchRow[CONFIG.COL_INTIME - 1]
+      //   ? Utilities.formatDate(
+      //     new Date(dispatchRow[CONFIG.COL_INTIME - 1]),
+      //     Session.getScriptTimeZone(),
+      //     "HH:mm:ss"
+      //   )
+      //   : "",
+
+      // outDate: dispatchRow[CONFIG.COL_OUTTIME - 1]
+      //   ? Utilities.formatDate(
+      //     new Date(dispatchRow[CONFIG.COL_OUTTIME - 1]),
+      //     Session.getScriptTimeZone(),
+      //     "dd-MM-yyyy"
+      //   )
+      //   : "",
+
+      // outTime: dispatchRow[CONFIG.COL_OUTTIME - 1]
+      //   ? Utilities.formatDate(
+      //     new Date(dispatchRow[CONFIG.COL_OUTTIME - 1]),
+      //     Session.getScriptTimeZone(),
+      //     "HH:mm:ss"
+      //   )
+      //   : "",
+
+      // grossWeightKg: Number(dispatchRow[CONFIG.COL_GROSSWEIGHT - 1]) * 1000,
+
+      // tareWeightKg: Number(dispatchRow[CONFIG.COL_TAREWEIGHT - 1]) * 1000,
+
+      // netWeightKg: Number(dispatchRow[CONFIG.COL_NET_WEIGHT - 1]) * 1000,
+
+      // netWeightWords: convertNumberToWords(
+      //   Math.round(Number(dispatchRow[CONFIG.COL_NET_WEIGHT - 1]) * 1000)
+      // )
+
+    };
+
+  }
+  catch (err) {
+
+    Logger.log(err);
+
+    return {
+      error: err.toString()
+    };
+
+  }
+
+}
+
+/***********************************************************
+ *  ALL BILLED IN NUMBERS (for challan dropdown)
+ *  Returns list of {inNo, billNo, billDate, party} for
+ *  every IN that has a submitted bill.
+ ***********************************************************/
+function getBilledINList() {
+
+  try {
+
+    // -------------------------------
+    // Bill Submit (last 100 records)
+    // -------------------------------
+    const billMeta = Sheets.Spreadsheets.get(
+      CONFIG.TRIAL_BILL_SS_ID,
+      { fields: "sheets(properties(title,gridProperties(rowCount)))" }
+    );
+
+    const billSheetInfo = billMeta.sheets.find(
+      s => s.properties.title === CONFIG.BILL_SUBMIT_SHEET
+    );
+
+    const lastRow = billSheetInfo.properties.gridProperties.rowCount;
+
+    const startRow = Math.max(109216, lastRow - 99);
+
+    if (lastRow < startRow) return [];
+
+    const submitResponse = Sheets.Spreadsheets.Values.get(
+      CONFIG.TRIAL_BILL_SS_ID,
+      `${CONFIG.BILL_SUBMIT_SHEET}!A${startRow}:D${lastRow}`
+    );
+
+    const submitData = submitResponse.values || [];
+
+
+
+    // -------------------------------
+    // Dispatch data (42000 onwards)
+    // -------------------------------
+    const dispatchResponse = Sheets.Spreadsheets.Values.get(
+      CONFIG.DISPATCH_SS_ID,
+      `${CONFIG.DISPATCH_SHEET}!A42000:AF`
+    );
+
+    const dispatchData = dispatchResponse.values || [];
+
+
+
+    // -------------------------------
+    // Build IN → Party map
+    // -------------------------------
+    const partyMap = {};
+
+    dispatchData.forEach(row => {
+
+      const inNo = String(
+        row[CONFIG.COL_IN_NO - 1] || ""
+      ).trim();
+
+      const party = String(
+        row[CONFIG.COL_PARTY - 1] || ""
+      ).trim();
+
+      if (inNo) {
+        partyMap[inNo] = party;
+      }
+
+    });
+
+
+
+    // -------------------------------
+    // Build result
+    // -------------------------------
+    return submitData
+      .filter(r => String(r[1] || "").trim())
+      .map(r => ({
+
+        billDate: r[0]
+          ? Utilities.formatDate(
+            new Date(r[0]),
+            Session.getScriptTimeZone(),
+            "dd-MMM-yyyy"
+          )
+          : "",
+
+        inNo: String(r[1] || "").trim(),
+
+        billNo: String(r[2] || "").trim(),
+
+        party: partyMap[
+          String(r[1] || "").trim()
+        ] || ""
+
+      }))
+      .reverse();
+
+  }
+  catch (err) {
+
+    Logger.log(err);
+    return [];
+
+  }
+
+}
+
+/***********************************************************
+ *  WEIGHMENT SLIP DATA
+ *  Returns all fields needed to render a Weighment Slip
+ *  for a given dispatch IN number.
+ ***********************************************************/
+function getWeighmentSlipData(inNo) {
+
+  try {
+
+    //────────────────────────────
+    // 1. Dispatch Data
+    //────────────────────────────
+    const dispatchResponse = Sheets.Spreadsheets.Values.get(
+      CONFIG.DISPATCH_SS_ID,
+      `${CONFIG.DISPATCH_SHEET}!A40000:AF`
+    );
+
+    const dispatchData = dispatchResponse.values || [];
+
+    let dispatchRow = null;
+
+    for (const row of dispatchData) {
+
+      if (
+        String(row[CONFIG.COL_IN_NO - 1] || "").trim() ===
+        String(inNo).trim()
+      ) {
+        dispatchRow = row;
+        break;
+      }
+
+    }
+
+    if (!dispatchRow) {
+
+      return {
+        error: "Dispatch record not found for IN : " + inNo
+      };
+
+    }
+
+    //────────────────────────────
+    // 2. Port = From location
+    //────────────────────────────
+    const port = String(
+      dispatchRow[CONFIG.COL_FROM - 1] || ""
+    ).trim();
+
+    //────────────────────────────
+    // 3. State + Pincode lookup from Biller Sheet
+    //    (same column mapping as getChallanData: B=Port, C=Pincode, D=State)
+    //────────────────────────────
+    let state = "";
+    let pin = "";
+
+    try {
+
+      const billerResponse = Sheets.Spreadsheets.Values.get(
+        CONFIG.TRIAL_BILL_SS_ID,
+        `${CONFIG.BILLER_SHEET}!B:F`
+      );
+
+      const billerData = billerResponse.values || [];
+
+      for (const row of billerData) {
+
+        if (
+          String(row[0] || "").trim() === port
+        ) {
+          pin = String(row[1] || "").trim();
+          state = String(row[2] || "").trim();
+          break;
+        }
+
+      }
+
+    }
+    catch (e) {
+      Logger.log("Biller lookup failed : " + e);
+    }
+
+    //────────────────────────────
+    // 4. Ticket No. = numeric part of IN No
+    //────────────────────────────
+    const ticketNo = String(inNo).replace(/\D/g, "");
+
+    //────────────────────────────
+    // 5. Weights — MT to KG (× 1000)
+    //────────────────────────────
+    const grossWeightKG = Number(dispatchRow[CONFIG.COL_GROSSWEIGHT - 1]) * 1000;
+    const tareWeightKG = Number(dispatchRow[CONFIG.COL_TAREWEIGHT - 1]) * 1000;
+    const netWeightKG = Number(dispatchRow[CONFIG.COL_NET_WEIGHT - 1]) * 1000;
+
+    //────────────────────────────
+    // 6. Date & Time — In = Gross weighment, Out = Tare weighment
+    //────────────────────────────
+    const grossDate = dispatchRow[CONFIG.COL_INTIME - 1]
+      ? Utilities.formatDate(
+        new Date(dispatchRow[CONFIG.COL_INTIME - 1]),
+        Session.getScriptTimeZone(),
+        "dd-MM-yyyy"
+      )
+      : "";
+
+    const grossTime = dispatchRow[CONFIG.COL_INTIME - 1]
+      ? Utilities.formatDate(
+        new Date(dispatchRow[CONFIG.COL_INTIME - 1]),
+        Session.getScriptTimeZone(),
+        "HH:mm:ss"
+      )
+      : "";
+
+    const tareDate = dispatchRow[CONFIG.COL_OUTTIME - 1]
+      ? Utilities.formatDate(
+        new Date(dispatchRow[CONFIG.COL_OUTTIME - 1]),
+        Session.getScriptTimeZone(),
+        "dd-MM-yyyy"
+      )
+      : "";
+
+    const tareTime = dispatchRow[CONFIG.COL_OUTTIME - 1]
+      ? Utilities.formatDate(
+        new Date(dispatchRow[CONFIG.COL_OUTTIME - 1]),
+        Session.getScriptTimeZone(),
+        "HH:mm:ss"
+      )
+      : "";
+
+    //────────────────────────────
+    // Return Object — field names match index.html exactly
+    //────────────────────────────
+    return {
+
+      inNo: inNo,
+
+      port: port,
+      state: state,
+      pin: pin,
+
+      ticketNo: ticketNo,
+      commodity: "Coal",   // static — change if commodity varies per dispatch
+
+      vehicleNo: String(
+        dispatchRow[CONFIG.COL_TRUCK - 1] || ""
+      ).trim(),
+
+      grossWeightKG: grossWeightKG,
+      grossDate: grossDate,
+      grossTime: grossTime,
+
+      tareWeightKG: tareWeightKG,
+      tareDate: tareDate,
+      tareTime: tareTime,
+
+      netWeightKG: netWeightKG,
+
+      netWeightWords: convertNumberToWords(
+        Math.round(netWeightKG)
+      )
+
+    };
+
+  }
+  catch (err) {
+
+    Logger.log(err);
+
+    return {
+      error: err.toString()
+    };
+
+  }
+
+}
+/***********************************************************
+ *  Server-side lookup of pin and state
+ ***********************************************************/
+
+function getPortDetails(port) {
+
+  const values = Sheets.Spreadsheets.Values.get(
+    CONFIG.TRIAL_BILL_SS_ID,
+    `${CONFIG.BILLER_SHEET}!B2:D`
+  ).values || [];
+
+  const row = values.find(r =>
+    String(r[0]).trim().toLowerCase() === port.trim().toLowerCase()
+  );
+
+  return {
+    pin: row ? row[1] : "",
+    state: row ? row[2] : "",
+  };
+
+}
+// Port List
+function getPortList() {
+
+  const values = Sheets.Spreadsheets.Values.get(
+    CONFIG.TRIAL_BILL_SS_ID,
+    `${CONFIG.BILLER_SHEET}!B2:D`
+  ).values || [];
+
+  return values.map(r => ({
+    port: r[0] || "",
+    state: r[2] || "",
+    pin: r[1] || ""
+  }));
+
+}
+/***********************************************************
+ *  UTILITY
+ ***********************************************************/
+function generateUID() {
+  return Utilities.getUuid();
+}
+
+/***********************************************************
+ *  CONVERTS NUMBER TO WORDS
+ ***********************************************************/
+
+function convertNumberToWords(num) {
+
+  const a = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six',
+    'Seven', 'Eight', 'Nine', 'Ten', 'Eleven', 'Twelve',
+    'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen',
+    'Seventeen', 'Eighteen', 'Nineteen'];
+
+  const b = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty',
+    'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+
+  function inWords(n) {
+
+    if (n < 20) return a[n];
+
+    if (n < 100)
+      return b[Math.floor(n / 10)] +
+        (n % 10 ? " " + a[n % 10] : "");
+
+    if (n < 1000)
+      return a[Math.floor(n / 100)] +
+        " Hundred " +
+        inWords(n % 100);
+
+    if (n < 100000)
+      return inWords(Math.floor(n / 1000)) +
+        " Thousand " +
+        inWords(n % 1000);
+
+    if (n < 10000000)
+      return inWords(Math.floor(n / 100000)) +
+        " Lakh " +
+        inWords(n % 100000);
+
+    return inWords(Math.floor(n / 10000000)) +
+      " Crore " +
+      inWords(n % 10000000);
+  }
+
+  return inWords(num).replace(/\s+/g, " ").trim() + " Only";
+}
