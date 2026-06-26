@@ -343,7 +343,7 @@ function claimIN(inNo) {
 
     try {
       lock.releaseLock();
-    } catch (e) { }
+    } catch (e) { Logger.log("Error" + e)}
 
   }
 
@@ -496,16 +496,8 @@ function getPendingBills() {
 
     try {
 
-      const claimSheet = getClaimsSheet_();
-
-      const claimLast = claimSheet.getLastRow();
-
-      if (claimLast > 1) {
-
-        const cData = claimSheet
-          .getRange(2, 1, claimLast - 1, 4)
-          .getValues();
-
+        const cData = getClaimsData_();
+    
         const now = Date.now();
 
         cData.forEach(r => {
@@ -529,7 +521,7 @@ function getPendingBills() {
 
         });
 
-      }
+      
 
     } catch (e) {
       Logger.log(e);
@@ -838,7 +830,7 @@ function createBill(inNo, billNo, billBy) {
         `${CONFIG.BILL_SUBMIT_SHEET}!B100000:C`
       ).values || [];
 
-    const billedSet = new Set();
+    let billedSet = new Set();
     const billNoSet = new Set();
 
     existingData.forEach(row => {
@@ -893,7 +885,7 @@ function createBill(inNo, billNo, billBy) {
     // Release claim after successful bill creation
     try {
       releaseClaim(inNo);
-    } catch (e) { }
+    } catch (e) { Logger.log("Error : " + e)}
 
     return {
       success: true,
@@ -914,7 +906,7 @@ function createBill(inNo, billNo, billBy) {
     try {
       lock.releaseLock();
     }
-    catch (e) { }
+    catch (e) { Logger.log("Error : " + e) }
 
   }
 
@@ -1486,6 +1478,27 @@ function getWeighmentSlipData(inNo) {
     };
 
   }
+
+}
+/***********************************************************
+ *  Server-side lookup of pin and state
+ ***********************************************************/
+
+function getPortDetails(port) {
+
+  const values = Sheets.Spreadsheets.Values.get(
+    CONFIG.TRIAL_BILL_SS_ID,
+    `${CONFIG.BILLER_SHEET}!B2:D`
+  ).values || [];
+
+  const row = values.find(r =>
+    String(r[0]).trim().toLowerCase() === port.trim().toLowerCase()
+  );
+
+  return {
+    pin: row ? row[1] : "",
+    state: row ? row[2] : "",
+  };
 
 }
 /***********************************************************
